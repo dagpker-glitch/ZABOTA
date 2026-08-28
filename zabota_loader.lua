@@ -36,8 +36,9 @@ end
 local ZabotaLib = loadstring(content)()
 
 local Window = ZabotaLib:CreateWindow({
-    Title = "ZABOTA",
-    ToggleKey = Enum.KeyCode.RightShift
+    Title = "META",
+    ToggleKey = Enum.KeyCode.RightShift,
+    Version = "v1.1"
 })
 
 -- Создание оверлея HUD
@@ -45,13 +46,57 @@ local HUD = Window:CreateHUD("KEYBINDS")
 HUD:AddBind("RShift", "ZABOTA Menu", "TOGGLE")
 
 -- Вкладки
-local legitTab    = Window:AddTab("Legit")
+local aimbotTab   = Window:AddTab("AimBot")
 local visualTab   = Window:AddTab("Visual")
 local movementTab = Window:AddTab("Movement")
-local settingsTab = Window:AddTab("Settings")
+local radarTab    = Window:AddTab("Radar")
+local miscTab     = Window:AddTab("Misc")
+local configTab   = Window:AddTab("Config")
 
--- Кнопка выгрузки (Uninject)
-local controlCard = settingsTab:AddCard("Menu Control")
+----------------------------------------------------------------
+-- Visual tab: ESP Preview (left) + Visuals checkbox list (right)
+-- Layout/behavior modeled after the reference screenshot
+----------------------------------------------------------------
+local Preview = visualTab:AddPreviewPanel("ESP Preview", {"↗"})
+
+local VisualsCard = visualTab:AddCard("Visuals", {"→"})
+
+local boxCb = VisualsCard:AddCheckbox("Box", true, function(state)
+    Preview:SetBox(state)
+end, {colors = {Color3.fromRGB(150, 150, 150), Color3.fromRGB(150, 150, 150)}})
+
+local nameCb = VisualsCard:AddCheckbox("Name", true, function(state)
+    Preview:SetName(state)
+end)
+
+local healthCb = VisualsCard:AddCheckbox("Healthbar", true, function(state)
+    Preview:SetHealthbar(state)
+end, {tag = true, colors = {Color3.fromRGB(150, 150, 150)}})
+
+VisualsCard:AddCheckbox("Armor bar", false, nil, {disabled = true})
+VisualsCard:AddCheckbox("Weapon", false, nil, {disabled = true})
+VisualsCard:AddCheckbox("Weapon Icon", false, nil, {disabled = true})
+VisualsCard:AddCheckbox("Distance", false, nil, {disabled = true})
+
+local skeletonCb = VisualsCard:AddCheckbox("Skeleton", true, function(state)
+    Preview:SetSkeleton(state)
+end, {colors = {Color3.fromRGB(190, 210, 90), Color3.fromRGB(90, 180, 210)}})
+
+VisualsCard:AddCheckbox("World items", true, nil, {tag = true})
+VisualsCard:AddCheckbox("Projectiles", false, nil, {disabled = true, tag = true})
+VisualsCard:AddCheckbox("Grenade predict", false, nil, {disabled = true, tag = true})
+
+-- Apply defaults to the preview immediately
+Preview:SetBox(true)
+Preview:SetName(true)
+Preview:SetHealthbar(true)
+Preview:SetSkeleton(true)
+Preview:SetHealth(100)
+
+----------------------------------------------------------------
+-- Settings / Config tab: Uninject button
+----------------------------------------------------------------
+local controlCard = configTab:AddCard("Menu Control")
 controlCard:AddButton("Uninject / Unload", function()
     Window.Notify("ZABOTA", "Выгрузка интерфейса...", 1)
     task.wait(0.4)
