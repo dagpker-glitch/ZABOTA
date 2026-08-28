@@ -10,30 +10,48 @@ local urls = {
 
 local content = nil
 local lastError = ""
+local MAX_ATTEMPTS_PER_URL = 2
 
 for _, url in ipairs(urls) do
-    local success, response = pcall(function()
-        return game:HttpGet(url, true)
-    end)
+    for attempt = 1, MAX_ATTEMPTS_PER_URL do
+        local success, response = pcall(function()
+            return game:HttpGet(url, true)
+        end)
 
-    if success and response and response ~= "" and not string.find(response, "404: Not Found") and not string.find(response, "Cannot find") then
-        content = response
-        break
-    else
-        lastError = tostring(response)
+        if success and type(response) == "string" and response ~= "" and not string.find(response, "404: Not Found") and not string.find(response, "Cannot find") then
+            content = response
+            break
+        else
+            lastError = success and "empty/invalid response" or tostring(response)
+            if attempt < MAX_ATTEMPTS_PER_URL then
+                task.wait(0.5)
+            end
+        end
     end
+    if content then break end
 end
 
-if not content then
-    warn("[ZABOTA Error] Не удалось получить исходный код. Ответ сервера: " .. lastError)
+if not content or content == "" then
+    warn("[ZABOTA Error] Не удалось получить исходный код ни с одного зеркала. Последняя ошибка: " .. lastError)
     warn("Решения:")
     warn("1. Открой репозиторий dagpker-glitch/ZABOTA -> Settings -> в самом низу проверь 'Change repository visibility' (должно быть PUBLIC).")
     warn("2. Проверь регистр букв в названии файла (ZabotaLib.lua, а не zabotalib.lua или ZabotaLib.LUA).")
+    warn("3. Проверь, разрешён ли HttpGet к внешним доменам в твоём экзекьюторе.")
     return
 end
 
 -- Инициализация библиотеки
-local ZabotaLib = loadstring(content)()
+local libChunk, libCompileErr = loadstring(content)
+if not libChunk then
+    warn("[ZABOTA Error] ZabotaLib.lua загрузился, но не скомпилировался: " .. tostring(libCompileErr))
+    return
+end
+
+local libOk, ZabotaLib = pcall(libChunk)
+if not libOk or not ZabotaLib then
+    warn("[ZABOTA Error] Ошибка при выполнении ZabotaLib.lua: " .. tostring(ZabotaLib))
+    return
+end
 
 local Window = ZabotaLib:CreateWindow({
     Title = "META",
