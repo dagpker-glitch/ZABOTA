@@ -54,22 +54,64 @@ local miscTab     = Window:AddTab("Misc")
 local configTab   = Window:AddTab("Config")
 
 ----------------------------------------------------------------
--- Visual tab: ESP Preview (left) + Visuals checkbox list (right)
--- Layout/behavior modeled after the reference screenshot
+-- AimBot tab — layout modeled after the reference screenshot:
+-- left column = "Aimbot" card (Enable, FOV, Smooth, checkboxes,
+-- Kill Delay MS, Weapons list); right column = Triggerbot /
+-- Semi Rage / RCS Standalone / Humanize cards
 ----------------------------------------------------------------
-local Preview = visualTab:AddPreviewPanel("ESP Preview", {"↗"})
+local AimCard = aimbotTab:AddCard("Aimbot", {icon = "🎯", side = "left"})
 
-local VisualsCard = visualTab:AddCard("Visuals", {"→"})
+AimCard:AddCheckbox("Enable", true, function(state) end, {tag = true})
 
-local boxCb = VisualsCard:AddCheckbox("Box", true, function(state)
+AimCard:AddSlider("FOV", 0, 10, 3.0, 0.1, function(v) end)
+AimCard:AddSlider("Smooth (ticks)", 0, 15, 6.7, 0.1, function(v) end)
+
+AimCard:AddCheckbox("Multipoints", true)
+AimCard:AddCheckbox("Draw FOV", true)
+AimCard:AddCheckbox("Kill Delay", true)
+
+AimCard:AddSlider("Kill Delay MS", 0, 1000, 500, 1, function(v) end)
+
+AimCard:AddWeaponList("Weapons", {
+    "M4A4",
+    "SG 553",
+    "AWP",
+    "G3SG1",
+    "AUG",
+    "SSG 08"
+}, true, function(state) end)
+
+----------------------------------------------------------------
+local TriggerCard = aimbotTab:AddCard("Triggerbot", {icon = "🎯", side = "right"})
+TriggerCard:AddCheckbox("Enable", false)
+
+local SemiRageCard = aimbotTab:AddCard("Semi Rage", {icon = "💎", side = "right"})
+SemiRageCard:AddSlider("Before shot", 0, 200, 0, 1, function(v) end, {disabled = true})
+SemiRageCard:AddSlider("Between Shots", 0, 300, 165, 1, function(v) end)
+SemiRageCard:AddSlider("Hit Chance", 0, 100, 60, 1, function(v) end)
+
+local RCSCard = aimbotTab:AddCard("RCS Standalone", {icon = "🎯", side = "right"})
+RCSCard:AddCheckbox("Enable", false)
+
+local HumanizeCard = aimbotTab:AddCard("Humanize", {icon = "🧠", side = "right"})
+HumanizeCard:AddCheckbox("Enable", false)
+
+----------------------------------------------------------------
+-- Visual tab: ESP Preview (left) + Visuals checkbox list (right)
+----------------------------------------------------------------
+local Preview = visualTab:AddPreviewPanel("ESP Preview", {icon = nil, side = "left"})
+
+local VisualsCard = visualTab:AddCard("Visuals", {side = "right"})
+
+VisualsCard:AddCheckbox("Box", true, function(state)
     Preview:SetBox(state)
 end, {colors = {Color3.fromRGB(150, 150, 150), Color3.fromRGB(150, 150, 150)}})
 
-local nameCb = VisualsCard:AddCheckbox("Name", true, function(state)
+VisualsCard:AddCheckbox("Name", true, function(state)
     Preview:SetName(state)
 end)
 
-local healthCb = VisualsCard:AddCheckbox("Healthbar", true, function(state)
+VisualsCard:AddCheckbox("Healthbar", true, function(state)
     Preview:SetHealthbar(state)
 end, {tag = true, colors = {Color3.fromRGB(150, 150, 150)}})
 
@@ -78,7 +120,7 @@ VisualsCard:AddCheckbox("Weapon", false, nil, {disabled = true})
 VisualsCard:AddCheckbox("Weapon Icon", false, nil, {disabled = true})
 VisualsCard:AddCheckbox("Distance", false, nil, {disabled = true})
 
-local skeletonCb = VisualsCard:AddCheckbox("Skeleton", true, function(state)
+VisualsCard:AddCheckbox("Skeleton", true, function(state)
     Preview:SetSkeleton(state)
 end, {colors = {Color3.fromRGB(190, 210, 90), Color3.fromRGB(90, 180, 210)}})
 
@@ -86,7 +128,6 @@ VisualsCard:AddCheckbox("World items", true, nil, {tag = true})
 VisualsCard:AddCheckbox("Projectiles", false, nil, {disabled = true, tag = true})
 VisualsCard:AddCheckbox("Grenade predict", false, nil, {disabled = true, tag = true})
 
--- Apply defaults to the preview immediately
 Preview:SetBox(true)
 Preview:SetName(true)
 Preview:SetHealthbar(true)
@@ -94,9 +135,9 @@ Preview:SetSkeleton(true)
 Preview:SetHealth(100)
 
 ----------------------------------------------------------------
--- Settings / Config tab: Uninject button
+-- Config tab: Uninject button
 ----------------------------------------------------------------
-local controlCard = configTab:AddCard("Menu Control")
+local controlCard = configTab:AddCard("Menu Control", {icon = "⚙", side = "left"})
 controlCard:AddButton("Uninject / Unload", function()
     Window.Notify("ZABOTA", "Выгрузка интерфейса...", 1)
     task.wait(0.4)

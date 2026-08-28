@@ -9,21 +9,24 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 ----------------------------------------------------------------
--- Theme: flat, minimal, near-black "meta"-style cheat menu look
+-- Theme: dark "meta"-style cheat menu — near-black window bg,
+-- lightly-tinted rounded card boxes for every section
 ----------------------------------------------------------------
 local Themes = {
     Dark = {
-        MainBg = Color3.fromRGB(9, 9, 11),
-        TopBarBg = Color3.fromRGB(9, 9, 11),
+        MainBg = Color3.fromRGB(10, 10, 12),
+        TopBarBg = Color3.fromRGB(10, 10, 12),
+        CardBg = Color3.fromRGB(23, 24, 28),
+        SubBg = Color3.fromRGB(14, 15, 18),
         HeaderText = Color3.fromRGB(118, 122, 134),
         Divider = Color3.fromRGB(255, 255, 255),
         Accent = Color3.fromRGB(233, 55, 60),
         Accent2 = Color3.fromRGB(255, 120, 70),
-        TextPrimary = Color3.fromRGB(230, 232, 238),
-        TextSecondary = Color3.fromRGB(148, 152, 164),
-        TextDisabled = Color3.fromRGB(70, 72, 80),
-        CheckboxOff = Color3.fromRGB(64, 66, 74),
-        SliderTrack = Color3.fromRGB(40, 42, 50),
+        TextPrimary = Color3.fromRGB(225, 227, 234),
+        TextSecondary = Color3.fromRGB(150, 154, 166),
+        TextDisabled = Color3.fromRGB(74, 76, 84),
+        CheckboxOff = Color3.fromRGB(70, 72, 80),
+        SliderTrack = Color3.fromRGB(46, 48, 56),
         RowHover = Color3.fromRGB(255, 255, 255)
     }
 }
@@ -89,7 +92,7 @@ local function ApplyPressFeel(button, hoverScale, connsTable)
     return scale
 end
 
--- Subtle full-row background tint on hover (flat style, no accent bars/shadows)
+-- Subtle full-row background tint on hover
 local function ApplyRowHover(row, connsTable, targetTransparency)
     targetTransparency = targetTransparency or 0.94
     row.BackgroundColor3 = CurrentTheme.RowHover
@@ -121,7 +124,6 @@ local function PlayStaggerIn(container)
     for i, item in ipairs(items) do
         local originalPos = item.Position
         item.Position = UDim2.new(originalPos.X.Scale, originalPos.X.Offset - 10, originalPos.Y.Scale, originalPos.Y.Offset)
-        local originalTextTransp
         task.delay((i - 1) * 0.04, function()
             if item and item.Parent then
                 Tween(item, {Position = originalPos}, 0.26, Enum.EasingStyle.Quint)
@@ -169,33 +171,80 @@ local function MakeDraggable(frame, handle, connectionsTable)
 end
 
 ----------------------------------------------------------------
--- Small header icon button (e.g. "↗" / "→")
+-- Card header: [icon] Title ............... [arrow]
 ----------------------------------------------------------------
-local function CreateHeaderIcon(parent, glyph, callback, connsTable)
-    local Btn = Instance.new("TextButton", parent)
-    Btn.Size = UDim2.new(0, 20, 0, 20)
-    Btn.BackgroundTransparency = 1
-    Btn.Text = glyph
-    Btn.Font = Enum.Font.GothamBold
-    Btn.TextSize = 13
-    Btn.TextColor3 = CurrentTheme.TextSecondary
-    Btn.AutoButtonColor = false
+local function BuildCardHeader(parent, title, icon, arrowGlyph, arrowCallback, connsTable)
+    local HeaderRow = Instance.new("Frame", parent)
+    HeaderRow.Name = "Header"
+    HeaderRow.Size = UDim2.new(1, 0, 0, 20)
+    HeaderRow.BackgroundTransparency = 1
+    HeaderRow.LayoutOrder = 1
 
-    local c1 = Btn.MouseEnter:Connect(function()
-        Tween(Btn, {TextColor3 = CurrentTheme.TextPrimary}, 0.14)
-    end)
-    local c2 = Btn.MouseLeave:Connect(function()
-        Tween(Btn, {TextColor3 = CurrentTheme.TextSecondary}, 0.16)
-    end)
-    local c3 = Btn.MouseButton1Click:Connect(function()
-        if callback then callback() end
-    end)
-    if connsTable then
-        table.insert(connsTable, c1)
-        table.insert(connsTable, c2)
-        table.insert(connsTable, c3)
+    local xOffset = 0
+    if icon then
+        local IconLbl = Instance.new("TextLabel", HeaderRow)
+        IconLbl.Text = icon
+        IconLbl.Font = Enum.Font.GothamBold
+        IconLbl.TextSize = 14
+        IconLbl.TextColor3 = CurrentTheme.TextSecondary
+        IconLbl.BackgroundTransparency = 1
+        IconLbl.Position = UDim2.new(0, 0, 0, 0)
+        IconLbl.Size = UDim2.new(0, 20, 1, 0)
+        IconLbl.TextXAlignment = Enum.TextXAlignment.Left
+        xOffset = 22
     end
-    return Btn
+
+    local TitleLbl = Instance.new("TextLabel", HeaderRow)
+    TitleLbl.Text = title
+    TitleLbl.Font = Enum.Font.GothamBold
+    TitleLbl.TextSize = 13
+    TitleLbl.TextColor3 = CurrentTheme.TextPrimary
+    TitleLbl.BackgroundTransparency = 1
+    TitleLbl.Position = UDim2.new(0, xOffset, 0, 0)
+    TitleLbl.Size = UDim2.new(1, -xOffset - 26, 1, 0)
+    TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    if arrowGlyph then
+        if arrowCallback then
+            local ArrowBtn = Instance.new("TextButton", HeaderRow)
+            ArrowBtn.Text = arrowGlyph
+            ArrowBtn.Font = Enum.Font.GothamBold
+            ArrowBtn.TextSize = 13
+            ArrowBtn.TextColor3 = CurrentTheme.TextDisabled
+            ArrowBtn.BackgroundTransparency = 1
+            ArrowBtn.AutoButtonColor = false
+            ArrowBtn.AnchorPoint = Vector2.new(1, 0)
+            ArrowBtn.Position = UDim2.new(1, 0, 0, 0)
+            ArrowBtn.Size = UDim2.new(0, 20, 1, 0)
+            ArrowBtn.TextXAlignment = Enum.TextXAlignment.Right
+
+            local c1 = ArrowBtn.MouseEnter:Connect(function()
+                Tween(ArrowBtn, {TextColor3 = CurrentTheme.TextPrimary}, 0.14)
+            end)
+            local c2 = ArrowBtn.MouseLeave:Connect(function()
+                Tween(ArrowBtn, {TextColor3 = CurrentTheme.TextDisabled}, 0.16)
+            end)
+            local c3 = ArrowBtn.MouseButton1Click:Connect(arrowCallback)
+            if connsTable then
+                table.insert(connsTable, c1)
+                table.insert(connsTable, c2)
+                table.insert(connsTable, c3)
+            end
+        else
+            local ArrowLbl = Instance.new("TextLabel", HeaderRow)
+            ArrowLbl.Text = arrowGlyph
+            ArrowLbl.Font = Enum.Font.GothamBold
+            ArrowLbl.TextSize = 13
+            ArrowLbl.TextColor3 = CurrentTheme.TextDisabled
+            ArrowLbl.BackgroundTransparency = 1
+            ArrowLbl.AnchorPoint = Vector2.new(1, 0)
+            ArrowLbl.Position = UDim2.new(1, 0, 0, 0)
+            ArrowLbl.Size = UDim2.new(0, 20, 1, 0)
+            ArrowLbl.TextXAlignment = Enum.TextXAlignment.Right
+        end
+    end
+
+    return HeaderRow
 end
 
 ----------------------------------------------------------------
@@ -227,7 +276,7 @@ function Zabota:CreateWindow(config)
     end
 
     ----------------------------------------------------------------
-    -- Toasts (flat, minimal)
+    -- Toasts
     ----------------------------------------------------------------
     local ToastContainer = Instance.new("Frame")
     ToastContainer.Size = UDim2.new(0, 260, 1, -20)
@@ -247,12 +296,11 @@ function Zabota:CreateWindow(config)
         local Toast = Instance.new("Frame")
         Toast.Size = UDim2.new(1, 40, 0, 0)
         Toast.Position = UDim2.new(0, 40, 0, 0)
-        Toast.BackgroundColor3 = CurrentTheme.MainBg
+        Toast.BackgroundColor3 = CurrentTheme.CardBg
         Toast.BackgroundTransparency = 1
         Toast.ClipsDescendants = true
         Toast.Parent = ToastContainer
-        Corner(Toast, 6)
-        Stroke(Toast, CurrentTheme.Divider, 1, 0.9)
+        Corner(Toast, 8)
 
         local Bar = Instance.new("Frame", Toast)
         Bar.Size = UDim2.new(0, 3, 1, 0)
@@ -293,11 +341,11 @@ function Zabota:CreateWindow(config)
     end
 
     ----------------------------------------------------------------
-    -- Main frame (flat black, thin border, no shadow/gradient/glow)
+    -- Main frame
     ----------------------------------------------------------------
     local MainFrame = Instance.new("CanvasGroup")
-    MainFrame.Size = UDim2.new(0, 720, 0, 440)
-    MainFrame.Position = UDim2.new(0.5, -360, 0.5, -220)
+    MainFrame.Size = UDim2.new(0, 720, 0, 460)
+    MainFrame.Position = UDim2.new(0.5, -360, 0.5, -230)
     MainFrame.BackgroundColor3 = CurrentTheme.MainBg
     MainFrame.BorderSizePixel = 0
     MainFrame.GroupTransparency = 1
@@ -385,11 +433,11 @@ function Zabota:CreateWindow(config)
         isMenuOpen = not isMenuOpen
         if isMenuOpen then
             MainFrame.Visible = true
-            MainFrame.Size = UDim2.new(0, 695, 0, 425)
-            Tween(MainFrame, {Size = UDim2.new(0, 720, 0, 440), GroupTransparency = 0}, 0.35, Enum.EasingStyle.Quint)
+            MainFrame.Size = UDim2.new(0, 695, 0, 445)
+            Tween(MainFrame, {Size = UDim2.new(0, 720, 0, 460), GroupTransparency = 0}, 0.35, Enum.EasingStyle.Quint)
             Tween(Blur, {Size = 12}, 0.3, Enum.EasingStyle.Quint)
         else
-            Tween(MainFrame, {Size = UDim2.new(0, 695, 0, 425), GroupTransparency = 1}, AnimSpeed * 0.85, Enum.EasingStyle.Quint)
+            Tween(MainFrame, {Size = UDim2.new(0, 695, 0, 445), GroupTransparency = 1}, AnimSpeed * 0.85, Enum.EasingStyle.Quint)
             Tween(Blur, {Size = 0}, 0.25, Enum.EasingStyle.Quint)
             task.delay(AnimSpeed * 0.85, function()
                 if not isMenuOpen then MainFrame.Visible = false end
@@ -434,22 +482,21 @@ function Zabota:CreateWindow(config)
     end
 
     ----------------------------------------------------------------
-    -- HUD (flat)
+    -- HUD
     ----------------------------------------------------------------
     function Window:CreateHUD(hudTitle)
         local HUD = Instance.new("Frame", ScreenGui)
         HUD.Size = UDim2.new(0, 190, 0, 34)
         HUD.AutomaticSize = Enum.AutomaticSize.Y
         HUD.Position = UDim2.new(0, 25, 0.5, -70)
-        HUD.BackgroundColor3 = CurrentTheme.MainBg
+        HUD.BackgroundColor3 = CurrentTheme.CardBg
         HUD.BackgroundTransparency = 1
         HUD.BorderSizePixel = 0
 
-        Corner(HUD, 6)
-        Stroke(HUD, CurrentTheme.Divider, 1, 0.9)
+        Corner(HUD, 8)
         MakeDraggable(HUD, nil, Connections)
 
-        Tween(HUD, {BackgroundTransparency = GlobalTransparency}, 0.3)
+        Tween(HUD, {BackgroundTransparency = 0}, 0.3)
 
         local topBarAccent = Instance.new("Frame", HUD)
         topBarAccent.Size = UDim2.new(1, 0, 0, 2)
@@ -510,7 +557,7 @@ function Zabota:CreateWindow(config)
         local state = (not disabled) and (default or false) or false
 
         local Row = Instance.new("TextButton", container)
-        Row.Size = UDim2.new(1, 0, 0, 26)
+        Row.Size = UDim2.new(1, 0, 0, 24)
         Row.BackgroundTransparency = 1
         Row.Text = ""
         Row.AutoButtonColor = false
@@ -524,8 +571,8 @@ function Zabota:CreateWindow(config)
         local Box = Instance.new("Frame", Row)
         Box.Size = UDim2.new(0, 15, 0, 15)
         Box.Position = UDim2.new(0, 0, 0.5, -7)
-        Box.BackgroundColor3 = state and CurrentTheme.Accent or CurrentTheme.MainBg
-        Box.BackgroundTransparency = state and 0 or 1
+        Box.BackgroundColor3 = state and CurrentTheme.Accent or CurrentTheme.SubBg
+        Box.BackgroundTransparency = 0
         Box.BorderSizePixel = 0
         Corner(Box, 3)
         local BoxStroke = Stroke(Box, disabled and CurrentTheme.TextDisabled or (state and CurrentTheme.Accent or CurrentTheme.CheckboxOff), 1.2, disabled and 0.5 or 0)
@@ -583,12 +630,12 @@ function Zabota:CreateWindow(config)
         local function refresh(animated)
             local dur = animated and 0.18 or 0
             if state then
-                Tween(Box, {BackgroundColor3 = CurrentTheme.Accent, BackgroundTransparency = 0}, dur)
+                Tween(Box, {BackgroundColor3 = CurrentTheme.Accent}, dur)
                 Tween(BoxStroke, {Color = CurrentTheme.Accent, Transparency = 0}, dur)
                 Tween(Check, {TextTransparency = 0}, dur)
                 Tween(CheckScale, {Scale = 1}, animated and 0.22 or 0, Enum.EasingStyle.Back)
             else
-                Tween(Box, {BackgroundColor3 = CurrentTheme.MainBg, BackgroundTransparency = 1}, dur)
+                Tween(Box, {BackgroundColor3 = CurrentTheme.SubBg}, dur)
                 Tween(BoxStroke, {Color = CurrentTheme.CheckboxOff, Transparency = 0}, dur)
                 Tween(Check, {TextTransparency = 1}, dur)
                 Tween(CheckScale, {Scale = 0.4}, dur)
@@ -627,23 +674,20 @@ function Zabota:CreateWindow(config)
         Page.Visible = false
 
         local LeftCol = Instance.new("ScrollingFrame", Page)
-        LeftCol.Position = UDim2.new(0, 20, 0, 16); LeftCol.Size = UDim2.new(0, 300, 1, -32)
+        LeftCol.Position = UDim2.new(0, 16, 0, 14); LeftCol.Size = UDim2.new(0, 320, 1, -28)
         LeftCol.BackgroundTransparency = 1; LeftCol.BorderSizePixel = 0; LeftCol.ScrollBarThickness = 2
         LeftCol.ScrollBarImageColor3 = CurrentTheme.Accent
-        Instance.new("UIListLayout", LeftCol).Padding = UDim.new(0, 8)
-
-        local ColDivider = Instance.new("Frame", Page)
-        ColDivider.Size = UDim2.new(0, 1, 1, -32)
-        ColDivider.Position = UDim2.new(0, 340, 0, 16)
-        ColDivider.BackgroundColor3 = CurrentTheme.Divider
-        ColDivider.BackgroundTransparency = 0.92
-        ColDivider.BorderSizePixel = 0
+        LeftCol.AutomaticCanvasSize = Enum.AutomaticCanvasSize.Y
+        LeftCol.CanvasSize = UDim2.new(0, 0, 0, 0)
+        local leftList = Instance.new("UIListLayout", LeftCol); leftList.Padding = UDim.new(0, 12)
 
         local RightCol = Instance.new("ScrollingFrame", Page)
-        RightCol.Position = UDim2.new(0, 360, 0, 16); RightCol.Size = UDim2.new(1, -378, 1, -32)
+        RightCol.Position = UDim2.new(0, 350, 0, 14); RightCol.Size = UDim2.new(1, -366, 1, -28)
         RightCol.BackgroundTransparency = 1; RightCol.BorderSizePixel = 0; RightCol.ScrollBarThickness = 2
         RightCol.ScrollBarImageColor3 = CurrentTheme.Accent
-        Instance.new("UIListLayout", RightCol).Padding = UDim.new(0, 14)
+        RightCol.AutomaticCanvasSize = Enum.AutomaticCanvasSize.Y
+        RightCol.CanvasSize = UDim2.new(0, 0, 0, 0)
+        local rightList = Instance.new("UIListLayout", RightCol); rightList.Padding = UDim.new(0, 12)
 
         local TabBtn = Instance.new("TextButton", TabScroll)
         TabBtn.Size = UDim2.new(0, 0, 0, 46)
@@ -702,7 +746,7 @@ function Zabota:CreateWindow(config)
         local Elements = {}
 
         ------------------------------------------------------------
-        -- Legacy flat nav-row button (icon + text)
+        -- Flat nav-row button (icon + text) — kept for back-compat
         ------------------------------------------------------------
         function Elements:AddLeftButton(text, iconId, callback)
             local Btn = Instance.new("TextButton", LeftCol)
@@ -727,60 +771,54 @@ function Zabota:CreateWindow(config)
         end
 
         ------------------------------------------------------------
-        -- Section header + list (flat, no card box) — used for
-        -- regular option lists as well as the ESP live-preview panel
+        -- Boxed card: icon + title + arrow header, rounded card bg
+        -- opts = { icon = "🎯", arrow = true|false|"glyph", onArrow = fn, side = "left"|"right" }
         ------------------------------------------------------------
-        local function BuildHeader(parent, cardTitle, headerIcons)
-            local HeaderRow = Instance.new("Frame", parent)
-            HeaderRow.Size = UDim2.new(1, 0, 0, 22)
-            HeaderRow.BackgroundTransparency = 1
+        function Elements:AddCard(cardTitle, opts)
+            opts = opts or {}
+            local targetCol = (opts.side == "left") and LeftCol or RightCol
 
-            local t = Instance.new("TextLabel", HeaderRow)
-            t.Text = cardTitle; t.Font = Enum.Font.GothamBold; t.TextSize = 13; t.TextColor3 = CurrentTheme.TextPrimary
-            t.Position = UDim2.new(0, 0, 0, 0); t.Size = UDim2.new(1, -80, 1, 0); t.BackgroundTransparency = 1; t.TextXAlignment = Enum.TextXAlignment.Left
+            local Card = Instance.new("Frame", targetCol)
+            Card.Size = UDim2.new(1, 0, 0, 10)
+            Card.AutomaticSize = Enum.AutomaticSize.Y
+            Card.BackgroundColor3 = CurrentTheme.CardBg
+            Card.BorderSizePixel = 0
+            Corner(Card, 10)
 
-            if headerIcons then
-                local IconRow = Instance.new("Frame", HeaderRow)
-                IconRow.Size = UDim2.new(0, 70, 1, 0)
-                IconRow.Position = UDim2.new(1, -70, 0, 0)
-                IconRow.BackgroundTransparency = 1
-                local layout = Instance.new("UIListLayout", IconRow)
-                layout.FillDirection = Enum.FillDirection.Horizontal
-                layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-                layout.VerticalAlignment = Enum.VerticalAlignment.Center
-                layout.Padding = UDim.new(0, 2)
-                for _, ic in ipairs(headerIcons) do
-                    local glyph = type(ic) == "table" and ic.glyph or ic
-                    local cb = type(ic) == "table" and ic.callback or nil
-                    CreateHeaderIcon(IconRow, glyph, cb, Connections)
-                end
+            local CardLayout = Instance.new("UIListLayout", Card)
+            CardLayout.Padding = UDim.new(0, 10)
+
+            local CardPad = Instance.new("UIPadding", Card)
+            CardPad.PaddingLeft = UDim.new(0, 14)
+            CardPad.PaddingRight = UDim.new(0, 14)
+            CardPad.PaddingTop = UDim.new(0, 12)
+            CardPad.PaddingBottom = UDim.new(0, 12)
+
+            local arrowGlyph
+            if opts.arrow == nil or opts.arrow == true then
+                arrowGlyph = "→"
+            elseif type(opts.arrow) == "string" then
+                arrowGlyph = opts.arrow
             end
 
-            Divider(parent, 1).Position = UDim2.new(0, 0, 0, 24)
-            return HeaderRow
-        end
-
-        ------------------------------------------------------------
-        function Elements:AddCard(cardTitle, headerIcons)
-            local Card = Instance.new("Frame", RightCol)
-            Card.Size = UDim2.new(1, 0, 0, 40); Card.AutomaticSize = Enum.AutomaticSize.Y; Card.BackgroundTransparency = 1
-
-            BuildHeader(Card, cardTitle, headerIcons)
+            BuildCardHeader(Card, cardTitle, opts.icon, arrowGlyph, opts.onArrow, Connections)
 
             local Container = Instance.new("Frame", Card)
-            Container.Position = UDim2.new(0, 0, 0, 32); Container.Size = UDim2.new(1, 0, 0, 0); Container.AutomaticSize = Enum.AutomaticSize.Y; Container.BackgroundTransparency = 1
-            local list = Instance.new("UIListLayout", Container); list.Padding = UDim.new(0, 2)
-            local pad = Instance.new("UIPadding", Container); pad.PaddingBottom = UDim.new(0, 4)
+            Container.Name = "Body"
+            Container.LayoutOrder = 2
+            Container.Size = UDim2.new(1, 0, 0, 0)
+            Container.AutomaticSize = Enum.AutomaticSize.Y
+            Container.BackgroundTransparency = 1
+            local list = Instance.new("UIListLayout", Container); list.Padding = UDim.new(0, 10)
 
             local CardControls = {}
 
             function CardControls:AddButton(text, callback)
                 local Btn = Instance.new("TextButton", Container)
-                Btn.Size = UDim2.new(1, 0, 0, 30); Btn.BackgroundTransparency = 1; Btn.BorderSizePixel = 0
+                Btn.Size = UDim2.new(1, 0, 0, 30); Btn.BackgroundColor3 = CurrentTheme.SubBg; Btn.BorderSizePixel = 0
                 Btn.Text = ""
                 Btn.AutoButtonColor = false
-                Corner(Btn, 5)
-                Stroke(Btn, CurrentTheme.Divider, 1, 0.88)
+                Corner(Btn, 6)
                 ApplyPressFeel(Btn, 1, Connections)
 
                 local lb = Instance.new("TextLabel", Btn)
@@ -808,39 +846,60 @@ function Zabota:CreateWindow(config)
                 return CreateCheckRow(Container, name, default, callback, nil)
             end
 
-            -- New: full-featured checkbox row (disabled state, color swatches, tag icon)
+            -- Full-featured checkbox row (disabled state, color swatches, tag icon)
             -- opts = { disabled = bool, colors = {Color3, ...}, tag = bool }
-            function CardControls:AddCheckbox(name, default, callback, opts)
-                return CreateCheckRow(Container, name, default, callback, opts)
+            function CardControls:AddCheckbox(name, default, callback, checkOpts)
+                return CreateCheckRow(Container, name, default, callback, checkOpts)
             end
 
-            function CardControls:AddSlider(name, min, max, default, step, callback)
+            function CardControls:AddSlider(name, min, max, default, step, callback, sliderOpts)
+                sliderOpts = sliderOpts or {}
+                local disabled = sliderOpts.disabled or false
                 step = step or 0.1
-                local cur = default or min
+                local cur = disabled and (sliderOpts.displayValue or 0) or (default or min)
+
                 local Box = Instance.new("Frame", Container)
-                Box.Size = UDim2.new(1, 0, 0, 40); Box.BackgroundTransparency = 1
+                Box.Size = UDim2.new(1, 0, 0, disabled and 18 or 34); Box.BackgroundTransparency = 1
 
                 local Title = Instance.new("TextLabel", Box)
-                Title.Text = name; Title.Font = Enum.Font.GothamMedium; Title.TextSize = 12; Title.TextColor3 = CurrentTheme.TextSecondary
+                Title.Text = name; Title.Font = Enum.Font.GothamMedium; Title.TextSize = 12
+                Title.TextColor3 = disabled and CurrentTheme.TextDisabled or CurrentTheme.TextSecondary
                 Title.Size = UDim2.new(1, -60, 0, 16); Title.BackgroundTransparency = 1; Title.TextXAlignment = Enum.TextXAlignment.Left
 
                 local Val = Instance.new("TextLabel", Box)
-                Val.Text = string.format("%.1f", cur); Val.Font = Enum.Font.GothamBold; Val.TextSize = 12; Val.TextColor3 = CurrentTheme.Accent
+                Val.Text = (step >= 1) and tostring(math.floor(cur)) or string.format("%.1f", cur)
+                Val.Font = Enum.Font.GothamBold; Val.TextSize = 12
+                Val.TextColor3 = disabled and CurrentTheme.TextDisabled or CurrentTheme.Accent
                 Val.Position = UDim2.new(1, -60, 0, 0); Val.Size = UDim2.new(0, 60, 0, 16); Val.BackgroundTransparency = 1; Val.TextXAlignment = Enum.TextXAlignment.Right
 
-                local Bar = Instance.new("TextButton", Box)
-                Bar.Text = ""; Bar.AutoButtonColor = false; Bar.Size = UDim2.new(1, 0, 0, 3); Bar.Position = UDim2.new(0, 0, 0, 24)
-                Bar.BackgroundColor3 = CurrentTheme.SliderTrack; Bar.BorderSizePixel = 0
-                Corner(Bar, 2)
+                if disabled then
+                    return {
+                        SetValue = function(_, v)
+                            cur = v
+                            Val.Text = (step >= 1) and tostring(math.floor(cur)) or string.format("%.1f", cur)
+                        end
+                    }
+                end
 
-                local Fill = Instance.new("Frame", Bar)
+                local Bar = Instance.new("TextButton", Box)
+                Bar.Text = ""; Bar.AutoButtonColor = false; Bar.BackgroundTransparency = 1
+                Bar.Size = UDim2.new(1, 0, 0, 14); Bar.Position = UDim2.new(0, 0, 0, 20)
+
+                local Track = Instance.new("Frame", Bar)
+                Track.Size = UDim2.new(1, 0, 0, 3)
+                Track.Position = UDim2.new(0, 0, 0.5, -1)
+                Track.BackgroundColor3 = CurrentTheme.SliderTrack
+                Track.BorderSizePixel = 0
+                Corner(Track, 2)
+
+                local Fill = Instance.new("Frame", Track)
                 Fill.Size = UDim2.new(math.clamp((cur - min) / (max - min), 0, 1), 0, 1, 0)
                 Fill.BackgroundColor3 = CurrentTheme.Accent; Fill.BorderSizePixel = 0
                 Corner(Fill, 2)
 
-                local Thumb = Instance.new("Frame", Bar)
+                local Thumb = Instance.new("Frame", Track)
                 Thumb.AnchorPoint = Vector2.new(0.5, 0.5)
-                Thumb.Size = UDim2.new(0, 10, 0, 10)
+                Thumb.Size = UDim2.new(0, 0, 0, 0)
                 Thumb.Position = UDim2.new(math.clamp((cur - min) / (max - min), 0, 1), 0, 0.5, 0)
                 Thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
                 Thumb.BorderSizePixel = 0
@@ -852,7 +911,7 @@ function Zabota:CreateWindow(config)
                     local rel = math.clamp((inputX - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
                     local v = math.floor((min + (max - min) * rel) / step + 0.5) * step
                     cur = math.clamp(v, min, max)
-                    Val.Text = string.format("%.1f", cur)
+                    Val.Text = (step >= 1) and tostring(math.floor(cur)) or string.format("%.1f", cur)
                     Tween(Fill, {Size = UDim2.new(rel, 0, 1, 0)}, 0.05, Enum.EasingStyle.Sine)
                     Tween(Thumb, {Position = UDim2.new(rel, 0, 0.5, 0)}, 0.05, Enum.EasingStyle.Sine)
                     if callback then callback(cur) end
@@ -861,7 +920,7 @@ function Zabota:CreateWindow(config)
                 local sBeg = Bar.InputBegan:Connect(function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                         dragging = true
-                        Tween(Thumb, {Size = UDim2.new(0, 13, 0, 13)}, 0.1)
+                        Tween(Thumb, {Size = UDim2.new(0, 10, 0, 10)}, 0.1)
                         update(input.Position.X)
                     end
                 end)
@@ -870,8 +929,8 @@ function Zabota:CreateWindow(config)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                         if dragging then
                             dragging = false
-                            Tween(Thumb, {Size = UDim2.new(0, 10, 0, 10)}, 0.12)
-                            Notify(name, "Set to " .. string.format("%.1f", cur), 1.4)
+                            Tween(Thumb, {Size = UDim2.new(0, 0, 0, 0)}, 0.12)
+                            Notify(name, "Set to " .. Val.Text, 1.4)
                         end
                     end
                 end)
@@ -882,9 +941,135 @@ function Zabota:CreateWindow(config)
                     end
                 end)
 
+                local hc1 = Bar.MouseEnter:Connect(function()
+                    if not dragging then Tween(Thumb, {Size = UDim2.new(0, 8, 0, 8)}, 0.12) end
+                end)
+                local hc2 = Bar.MouseLeave:Connect(function()
+                    if not dragging then Tween(Thumb, {Size = UDim2.new(0, 0, 0, 0)}, 0.12) end
+                end)
+
                 table.insert(Connections, sBeg)
                 table.insert(Connections, sEnd)
                 table.insert(Connections, sChg)
+                table.insert(Connections, hc1)
+                table.insert(Connections, hc2)
+
+                return {
+                    SetValue = function(_, v)
+                        cur = math.clamp(v, min, max)
+                        local rel = (cur - min) / (max - min)
+                        Val.Text = (step >= 1) and tostring(math.floor(cur)) or string.format("%.1f", cur)
+                        Tween(Fill, {Size = UDim2.new(rel, 0, 1, 0)}, 0.1)
+                        Tween(Thumb, {Position = UDim2.new(rel, 0, 0.5, 0)}, 0.1)
+                    end
+                }
+            end
+
+            -- Weapon list block: "Weapons" header + inline checkbox on the
+            -- right ("Automatic selection"), followed by a scrollable list
+            function CardControls:AddWeaponList(listTitle, weapons, defaultAuto, callback)
+                weapons = weapons or {}
+
+                local HeaderRow = Instance.new("Frame", Container)
+                HeaderRow.Size = UDim2.new(1, 0, 0, 20)
+                HeaderRow.BackgroundTransparency = 1
+
+                local TitleLbl = Instance.new("TextLabel", HeaderRow)
+                TitleLbl.Text = listTitle or "Weapons"
+                TitleLbl.Font = Enum.Font.GothamMedium
+                TitleLbl.TextSize = 13
+                TitleLbl.TextColor3 = CurrentTheme.TextPrimary
+                TitleLbl.BackgroundTransparency = 1
+                TitleLbl.Size = UDim2.new(0, 120, 1, 0)
+                TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local state = defaultAuto or false
+                local InlineWrap = Instance.new("TextButton", HeaderRow)
+                InlineWrap.Text = ""
+                InlineWrap.AutoButtonColor = false
+                InlineWrap.AnchorPoint = Vector2.new(1, 0.5)
+                InlineWrap.Position = UDim2.new(1, 0, 0.5, 0)
+                InlineWrap.Size = UDim2.new(0, 0, 0, 18)
+                InlineWrap.AutomaticSize = Enum.AutomaticSize.X
+                InlineWrap.BackgroundTransparency = 1
+
+                local wrapList = Instance.new("UIListLayout", InlineWrap)
+                wrapList.FillDirection = Enum.FillDirection.Horizontal
+                wrapList.VerticalAlignment = Enum.VerticalAlignment.Center
+                wrapList.Padding = UDim.new(0, 6)
+
+                local Box = Instance.new("Frame", InlineWrap)
+                Box.Size = UDim2.new(0, 15, 0, 15)
+                Box.BackgroundColor3 = state and CurrentTheme.Accent or CurrentTheme.SubBg
+                Box.BorderSizePixel = 0
+                Corner(Box, 3)
+                local BoxStroke = Stroke(Box, state and CurrentTheme.Accent or CurrentTheme.CheckboxOff, 1.2, 0)
+
+                local Check = Instance.new("TextLabel", Box)
+                Check.Text = "✓"; Check.Font = Enum.Font.GothamBold; Check.TextSize = 11
+                Check.TextColor3 = Color3.fromRGB(255, 255, 255); Check.BackgroundTransparency = 1
+                Check.Size = UDim2.new(1, 0, 1, 0); Check.TextTransparency = state and 0 or 1
+
+                local InlineLbl = Instance.new("TextLabel", InlineWrap)
+                InlineLbl.Text = "Automatic selection"
+                InlineLbl.Font = Enum.Font.GothamMedium
+                InlineLbl.TextSize = 12
+                InlineLbl.TextColor3 = CurrentTheme.TextSecondary
+                InlineLbl.BackgroundTransparency = 1
+                InlineLbl.Size = UDim2.new(0, 130, 1, 0)
+                InlineLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local wConn = InlineWrap.MouseButton1Click:Connect(function()
+                    state = not state
+                    Tween(Box, {BackgroundColor3 = state and CurrentTheme.Accent or CurrentTheme.SubBg}, 0.16)
+                    Tween(BoxStroke, {Color = state and CurrentTheme.Accent or CurrentTheme.CheckboxOff}, 0.16)
+                    Tween(Check, {TextTransparency = state and 0 or 1}, 0.16)
+                    if callback then callback(state) end
+                end)
+                table.insert(Connections, wConn)
+                ApplyPressFeel(InlineWrap, 1, Connections)
+
+                local ListBox = Instance.new("Frame", Container)
+                ListBox.Size = UDim2.new(1, 0, 0, 108)
+                ListBox.BackgroundColor3 = CurrentTheme.SubBg
+                ListBox.BorderSizePixel = 0
+                Corner(ListBox, 6)
+
+                local Scroll = Instance.new("ScrollingFrame", ListBox)
+                Scroll.Size = UDim2.new(1, -16, 1, -12)
+                Scroll.Position = UDim2.new(0, 8, 0, 6)
+                Scroll.BackgroundTransparency = 1
+                Scroll.BorderSizePixel = 0
+                Scroll.ScrollBarThickness = 2
+                Scroll.ScrollBarImageColor3 = CurrentTheme.Accent
+                Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+                Scroll.AutomaticCanvasSize = Enum.AutomaticCanvasSize.Y
+
+                local listLayout = Instance.new("UIListLayout", Scroll)
+                listLayout.Padding = UDim.new(0, 4)
+
+                local weaponLabels = {}
+                for _, wname in ipairs(weapons) do
+                    local Item = Instance.new("TextLabel", Scroll)
+                    Item.Text = wname
+                    Item.Font = Enum.Font.Gotham
+                    Item.TextSize = 12
+                    Item.TextColor3 = CurrentTheme.TextSecondary
+                    Item.BackgroundTransparency = 1
+                    Item.Size = UDim2.new(1, 0, 0, 16)
+                    Item.TextXAlignment = Enum.TextXAlignment.Left
+                    table.insert(weaponLabels, Item)
+                end
+
+                return {
+                    SetAuto = function(_, v)
+                        state = v and true or false
+                        Tween(Box, {BackgroundColor3 = state and CurrentTheme.Accent or CurrentTheme.SubBg}, 0.16)
+                        Tween(BoxStroke, {Color = state and CurrentTheme.Accent or CurrentTheme.CheckboxOff}, 0.16)
+                        Tween(Check, {TextTransparency = state and 0 or 1}, 0.16)
+                    end,
+                    GetAuto = function() return state end
+                }
             end
 
             return CardControls
@@ -892,17 +1077,35 @@ function Zabota:CreateWindow(config)
 
         ------------------------------------------------------------
         -- ESP-style live preview panel (box/skeleton/name/health)
+        -- Rendered as a boxed card too, consistent with AddCard
         ------------------------------------------------------------
-        function Elements:AddPreviewPanel(title, headerIcons)
-            local Panel = Instance.new("Frame", LeftCol)
-            Panel.Size = UDim2.new(1, 0, 0, 260)
-            Panel.BackgroundTransparency = 1
+        function Elements:AddPreviewPanel(title, opts)
+            opts = opts or {}
+            local targetCol = (opts.side == "right") and RightCol or LeftCol
 
-            BuildHeader(Panel, title or "PREVIEW", headerIcons)
+            local Panel = Instance.new("Frame", targetCol)
+            Panel.Size = UDim2.new(1, 0, 0, 270)
+            Panel.BackgroundColor3 = CurrentTheme.CardBg
+            Panel.BorderSizePixel = 0
+            Corner(Panel, 10)
+
+            local PanelPad = Instance.new("UIPadding", Panel)
+            PanelPad.PaddingLeft = UDim.new(0, 14)
+            PanelPad.PaddingRight = UDim.new(0, 14)
+            PanelPad.PaddingTop = UDim.new(0, 12)
+            PanelPad.PaddingBottom = UDim.new(0, 12)
+
+            local arrowGlyph
+            if opts.arrow == nil or opts.arrow == true then
+                arrowGlyph = "→"
+            elseif type(opts.arrow) == "string" then
+                arrowGlyph = opts.arrow
+            end
+            BuildCardHeader(Panel, title or "PREVIEW", opts.icon, arrowGlyph, opts.onArrow, Connections)
 
             local Stage = Instance.new("Frame", Panel)
-            Stage.Position = UDim2.new(0, 0, 0, 40)
-            Stage.Size = UDim2.new(1, 0, 1, -50)
+            Stage.Position = UDim2.new(0, 0, 0, 32)
+            Stage.Size = UDim2.new(1, 0, 1, -32)
             Stage.BackgroundTransparency = 1
 
             local centerX = 0.5
@@ -929,7 +1132,6 @@ function Zabota:CreateWindow(config)
             HealthLbl.Position = UDim2.new(centerX, -boxHalfW - 6, 0, boxTop + 4)
             HealthLbl.Size = UDim2.new(0, 30, 0, 14)
 
-            -- bracket box: verticals + tick caps (classic ESP box look)
             local function makeVerticalBracket(xOffset)
                 local V = Instance.new("Frame", Stage)
                 V.BackgroundColor3 = CurrentTheme.TextPrimary
@@ -961,7 +1163,6 @@ function Zabota:CreateWindow(config)
             for _, p in ipairs(leftBracket) do table.insert(boxParts, p) end
             for _, p in ipairs(rightBracket) do table.insert(boxParts, p) end
 
-            -- skeleton stick figure
             local skeletonParts = {}
             local function line(fromX, fromY, toX, toY)
                 local dx, dy = toX - fromX, toY - fromY
@@ -987,11 +1188,11 @@ function Zabota:CreateWindow(config)
             local HeadStroke = Stroke(Head, CurrentTheme.TextPrimary, 1, 0)
             table.insert(skeletonParts, Head)
 
-            line(0, 51, 0, 100)          -- spine
-            line(0, 60, -16, 82)         -- left arm
-            line(0, 60, 16, 82)          -- right arm
-            line(0, 100, -14, 140)       -- left leg
-            line(0, 100, 14, 140)        -- right leg
+            line(0, 51, 0, 100)
+            line(0, 60, -16, 82)
+            line(0, 60, 16, 82)
+            line(0, 100, -14, 140)
+            line(0, 100, 14, 140)
 
             local Handler = {}
 
