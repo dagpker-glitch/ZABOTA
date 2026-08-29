@@ -373,6 +373,20 @@ local tabs     = {}
 local tabPages = {}
 local activeTab = nil
 
+-- direct tab activation — no :Fire() needed
+local function activateTab(name)
+    if activeTab == name then return end
+    if activeTab then
+        tween(tabs[activeTab], FAST, { BackgroundColor3 = T.TAB_IDLE, TextColor3 = T.SUBTEXT })
+        tabPages[activeTab].Visible = false
+    end
+    activeTab = name
+    local btn  = tabs[name]
+    local page = tabPages[name]
+    if btn  then tween(btn,  FAST, { BackgroundColor3 = T.TAB_ACTIVE, TextColor3 = T.TEXT }) end
+    if page then page.Visible = true end
+end
+
 local function makeTab(name, icon, order)
     local btn = Instance.new("TextButton")
     btn.Text              = (icon and icon .. "  " or "") .. name
@@ -417,14 +431,7 @@ local function makeTab(name, icon, order)
     tabPages[name] = page
 
     btn.MouseButton1Click:Connect(function()
-        if activeTab == name then return end
-        if activeTab then
-            tween(tabs[activeTab], FAST, { BackgroundColor3 = T.TAB_IDLE, TextColor3 = T.SUBTEXT })
-            tabPages[activeTab].Visible = false
-        end
-        activeTab = name
-        tween(btn, FAST, { BackgroundColor3 = T.TAB_ACTIVE, TextColor3 = T.TEXT })
-        page.Visible = true
+        activateTab(name)
     end)
     btn.MouseEnter:Connect(function()
         if activeTab ~= name then tween(btn, FAST, { BackgroundColor3 = Color3.fromRGB(44, 36, 64) }) end
@@ -1897,8 +1904,7 @@ end)
 --        ACTIVATE FIRST TAB
 -- ─────────────────────────────────────────
 task.delay(0.12, function()
-    local btn = tabs["Movement"]
-    if btn then btn.MouseButton1Click:Fire() end
+    activateTab("Movement")
 end)
 
 -- Cleanup on destroy
