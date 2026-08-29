@@ -992,6 +992,448 @@ addButton(skinPage, "Reset Character", function()
 end)
 
 -- ─────────────────────────────────────────
+--           🔪 KNIFE SKINNER
+-- ─────────────────────────────────────────
+addSection(skinPage, "Knife Skinner")
+
+-- ── dropdown builder ─────────────────────
+local openDropdown = nil  -- track which dropdown is open to auto-close
+
+local function addDropdown(page, label, options, defaultIdx, callback)
+    local selectedIdx = defaultIdx or 1
+    local isOpen      = false
+
+    -- anchor frame — AutomaticSize so it expands when open
+    local anchor = Instance.new("Frame")
+    anchor.Name             = "Dropdown_" .. label
+    anchor.Size             = UDim2.new(1, 0, 0, 38)
+    anchor.BackgroundColor3 = T.BG
+    anchor.BorderSizePixel  = 0
+    anchor.ZIndex           = 20
+    anchor.ClipsDescendants = false
+    anchor.Parent           = page
+    corner(anchor, 7)
+    stroke(anchor, T.BORDER, 1)
+
+    -- header row
+    local headerBtn = Instance.new("TextButton")
+    headerBtn.Text              = ""
+    headerBtn.Size              = UDim2.new(1, 0, 0, 38)
+    headerBtn.BackgroundTransparency = 1
+    headerBtn.BorderSizePixel   = 0
+    headerBtn.AutoButtonColor   = false
+    headerBtn.ZIndex            = 21
+    headerBtn.Parent            = anchor
+
+    local labelTxt = Instance.new("TextLabel")
+    labelTxt.Text              = label
+    labelTxt.Font              = Enum.Font.Gotham
+    labelTxt.TextSize          = 11
+    labelTxt.TextColor3        = T.SUBTEXT
+    labelTxt.BackgroundTransparency = 1
+    labelTxt.Position          = UDim2.new(0, 12, 0, 2)
+    labelTxt.Size              = UDim2.new(0.5, 0, 0, 14)
+    labelTxt.TextXAlignment    = Enum.TextXAlignment.Left
+    labelTxt.ZIndex            = 22
+    labelTxt.Parent            = anchor
+
+    local valueTxt = Instance.new("TextLabel")
+    valueTxt.Text              = options[selectedIdx] or "—"
+    valueTxt.Font              = Enum.Font.GothamSemibold
+    valueTxt.TextSize          = 13
+    valueTxt.TextColor3        = T.TEXT
+    valueTxt.BackgroundTransparency = 1
+    valueTxt.Position          = UDim2.new(0, 12, 0, 16)
+    valueTxt.Size              = UDim2.new(1, -40, 0, 18)
+    valueTxt.TextXAlignment    = Enum.TextXAlignment.Left
+    valueTxt.ZIndex            = 22
+    valueTxt.Parent            = anchor
+
+    local arrow = Instance.new("TextLabel")
+    arrow.Text              = "▾"
+    arrow.Font              = Enum.Font.GothamBold
+    arrow.TextSize          = 14
+    arrow.TextColor3        = T.ACCENT
+    arrow.BackgroundTransparency = 1
+    arrow.Size              = UDim2.new(0, 24, 0, 38)
+    arrow.Position          = UDim2.new(1, -28, 0, 0)
+    arrow.TextXAlignment    = Enum.TextXAlignment.Center
+    arrow.ZIndex            = 22
+    arrow.Parent            = anchor
+
+    -- dropdown list — lives OUTSIDE the anchor so it overlaps siblings
+    local listFrame = Instance.new("Frame")
+    listFrame.Name             = "DropList"
+    listFrame.Size             = UDim2.new(1, 0, 0, 0)
+    listFrame.Position         = UDim2.new(0, 0, 0, 42)
+    listFrame.BackgroundColor3 = T.PANEL
+    listFrame.BorderSizePixel  = 0
+    listFrame.ZIndex           = 50
+    listFrame.Visible          = false
+    listFrame.ClipsDescendants = true
+    listFrame.Parent           = anchor
+    corner(listFrame, 7)
+    stroke(listFrame, T.BORDER, 1)
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent    = listFrame
+
+    local ITEM_H = 30
+    local fullH  = #options * ITEM_H
+
+    for i, opt in ipairs(options) do
+        local item = Instance.new("TextButton")
+        item.Text              = opt
+        item.Font              = i == selectedIdx and Enum.Font.GothamSemibold or Enum.Font.Gotham
+        item.TextSize          = 12
+        item.TextColor3        = i == selectedIdx and T.ACCENT or T.TEXT
+        item.BackgroundColor3  = T.PANEL
+        item.Size              = UDim2.new(1, 0, 0, ITEM_H)
+        item.BorderSizePixel   = 0
+        item.AutoButtonColor   = false
+        item.LayoutOrder       = i
+        item.ZIndex            = 51
+        item.Parent            = listFrame
+
+        item.MouseEnter:Connect(function()
+            if i ~= selectedIdx then
+                tween(item, FAST, { BackgroundColor3 = Color3.fromRGB(28, 24, 44) })
+            end
+        end)
+        item.MouseLeave:Connect(function()
+            if i ~= selectedIdx then
+                tween(item, FAST, { BackgroundColor3 = T.PANEL })
+            end
+        end)
+
+        local function selectThis()
+            -- deselect old
+            for _, child in ipairs(listFrame:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child.Font      = Enum.Font.Gotham
+                    child.TextColor3 = T.TEXT
+                    child.BackgroundColor3 = T.PANEL
+                end
+            end
+            selectedIdx        = i
+            item.Font          = Enum.Font.GothamSemibold
+            item.TextColor3    = T.ACCENT
+            item.BackgroundColor3 = Color3.fromRGB(22, 18, 38)
+            valueTxt.Text      = opt
+
+            -- close
+            isOpen = false
+            tween(listFrame, FAST, { Size = UDim2.new(1, 0, 0, 0) })
+            task.delay(0.16, function() listFrame.Visible = false end)
+            tween(arrow, FAST, { Rotation = 0 })
+            if openDropdown == listFrame then openDropdown = nil end
+
+            if callback then callback(opt, i) end
+        end
+
+        item.MouseButton1Click:Connect(selectThis)
+    end
+
+    headerBtn.MouseButton1Click:Connect(function()
+        -- close any other open dropdown
+        if openDropdown and openDropdown ~= listFrame then
+            tween(openDropdown, FAST, { Size = UDim2.new(1, 0, 0, 0) })
+            task.delay(0.16, function() if openDropdown then openDropdown.Visible = false end end)
+            openDropdown = nil
+        end
+
+        isOpen = not isOpen
+        if isOpen then
+            openDropdown       = listFrame
+            listFrame.Visible  = true
+            listFrame.Size     = UDim2.new(1, 0, 0, 0)
+            tween(listFrame, MED, { Size = UDim2.new(1, 0, 0, math.min(fullH, 180)) })
+            tween(arrow, FAST, { Rotation = 180 })
+        else
+            openDropdown = nil
+            tween(listFrame, FAST, { Size = UDim2.new(1, 0, 0, 0) })
+            task.delay(0.16, function() listFrame.Visible = false end)
+            tween(arrow, FAST, { Rotation = 0 })
+        end
+    end)
+
+    return function() return options[selectedIdx], selectedIdx end
+end
+
+-- ── knife data ───────────────────────────
+local KNIFE_NAMES = {
+    "Butterfly Knife",
+    "Karambit",
+    "M9 Bayonet",
+    "Bayonet",
+    "Flip Knife",
+    "Gut Knife",
+    "Huntsman Knife",
+    "Falchion Knife",
+    "Shadow Daggers",
+    "Bowie Knife",
+    "Ursus Knife",
+    "Navaja Knife",
+    "Stiletto Knife",
+    "Talon Knife",
+    "Skeleton Knife",
+    "Paracord Knife",
+    "Survival Knife",
+    "Nomad Knife",
+    "Classic Knife",
+}
+
+local SKIN_NAMES = {
+    "Fade",
+    "Doppler",
+    "Tiger Tooth",
+    "Marble Fade",
+    "Case Hardened",
+    "Slaughter",
+    "Crimson Web",
+    "Lore",
+    "Damascus Steel",
+    "Forest DDPAT",
+    "Urban Masked",
+    "Blue Steel",
+    "Stained",
+    "Scorched",
+    "Night",
+    "Safari Mesh",
+    "Boreal Forest",
+    "Vanilla",
+    "Black Laminate",
+    "Autotronic",
+    "Freehand",
+    "Bright Water",
+    "Rust Coat",
+}
+
+-- ── state ────────────────────────────────
+local knifeActive     = false
+local selectedKnife   = KNIFE_NAMES[1]
+local selectedSkin    = SKIN_NAMES[1]
+local selectedFloat   = 0
+
+local cache_m_ref = nil
+local cache_a_ref = nil
+
+local function applyKnifeHook()
+    local ok, rs = pcall(function() return game:GetService("ReplicatedStorage") end)
+    if not ok then return false end
+
+    local ok2, skins = pcall(function()
+        return require(rs.Database.Components.Libraries.Skins)
+    end)
+    if not ok2 or not skins then return false end
+
+    local ok3, animation = pcall(function()
+        return require(rs.Classes.WeaponComponent.Classes.Viewmodel.Classes.Animation)
+    end)
+    if not ok3 or not animation then return false end
+
+    -- cache originals only once
+    if not cache_m_ref then cache_m_ref = skins.GetCameraModel end
+    if not cache_a_ref then cache_a_ref = animation.construct  end
+
+    skins.GetCameraModel = function(weapon, skin, float)
+        if weapon == "CT Knife" or weapon == "T Knife" then
+            return cache_m_ref(selectedKnife, selectedSkin, selectedFloat)
+        end
+        return cache_m_ref(weapon, skin, float)
+    end
+
+    animation.construct = function(self, ...)
+        if self.Animation == "CT Knife" or self.Animation == "T Knife" then
+            self.Animation = selectedKnife
+        end
+        return cache_a_ref(self, ...)
+    end
+
+    return true
+end
+
+local function removeKnifeHook()
+    local ok, rs = pcall(function() return game:GetService("ReplicatedStorage") end)
+    if not ok then return end
+
+    pcall(function()
+        local skins = require(rs.Database.Components.Libraries.Skins)
+        if cache_m_ref then skins.GetCameraModel = cache_m_ref end
+    end)
+    pcall(function()
+        local animation = require(rs.Classes.WeaponComponent.Classes.Viewmodel.Classes.Animation)
+        if cache_a_ref then animation.construct = cache_a_ref end
+    end)
+end
+
+-- ── knife UI ─────────────────────────────
+local knifeToggleSet
+knifeToggleSet = addToggle(skinPage, "Enable Knife Changer", false, function(on)
+    knifeActive = on
+    if on then
+        local success = applyKnifeHook()
+        if not success then
+            warn("[ENI] Knife hook failed — wrong game or paths changed")
+            knifeActive = false
+            knifeToggleSet(false)
+        end
+    else
+        removeKnifeHook()
+    end
+end)
+
+local getKnife = addDropdown(skinPage, "Knife Model", KNIFE_NAMES, 1, function(val)
+    selectedKnife = val
+    if knifeActive then applyKnifeHook() end
+end)
+
+local getSkin = addDropdown(skinPage, "Skin", SKIN_NAMES, 1, function(val)
+    selectedSkin = val
+    if knifeActive then applyKnifeHook() end
+end)
+
+-- float slider with 2 decimal precision
+local floatWrapper = Instance.new("Frame")
+floatWrapper.Size             = UDim2.new(1, 0, 0, 54)
+floatWrapper.BackgroundColor3 = T.BG
+floatWrapper.BorderSizePixel  = 0
+floatWrapper.ZIndex           = 13
+floatWrapper.Parent           = skinPage
+corner(floatWrapper, 7)
+stroke(floatWrapper, T.BORDER, 1)
+
+local floatHeader = Instance.new("Frame")
+floatHeader.Size             = UDim2.new(1, -24, 0, 20)
+floatHeader.Position         = UDim2.new(0, 12, 0, 8)
+floatHeader.BackgroundTransparency = 1
+floatHeader.ZIndex           = 14
+floatHeader.Parent           = floatWrapper
+
+local floatLbl = Instance.new("TextLabel")
+floatLbl.Text             = "Float  (0.00 = Factory New)"
+floatLbl.Font             = Enum.Font.Gotham
+floatLbl.TextSize         = 13
+floatLbl.TextColor3       = T.TEXT
+floatLbl.BackgroundTransparency = 1
+floatLbl.Size             = UDim2.new(0.6, 0, 1, 0)
+floatLbl.TextXAlignment   = Enum.TextXAlignment.Left
+floatLbl.ZIndex           = 14
+floatLbl.Parent           = floatHeader
+
+local floatVal = Instance.new("TextLabel")
+floatVal.Text             = "0.00"
+floatVal.Font             = Enum.Font.GothamBold
+floatVal.TextSize         = 13
+floatVal.TextColor3       = T.ACCENT
+floatVal.BackgroundTransparency = 1
+floatVal.Size             = UDim2.new(0.4, 0, 1, 0)
+floatVal.Position         = UDim2.new(0.6, 0, 0, 0)
+floatVal.TextXAlignment   = Enum.TextXAlignment.Right
+floatVal.ZIndex           = 14
+floatVal.Parent           = floatHeader
+
+local floatTrack = Instance.new("Frame")
+floatTrack.Size             = UDim2.new(1, -24, 0, 6)
+floatTrack.Position         = UDim2.new(0, 12, 0, 36)
+floatTrack.BackgroundColor3 = T.SLIDER_BG
+floatTrack.BorderSizePixel  = 0
+floatTrack.ZIndex           = 14
+floatTrack.Parent           = floatWrapper
+corner(floatTrack, 3)
+
+local floatFill = Instance.new("Frame")
+floatFill.Size             = UDim2.new(0, 0, 1, 0)
+floatFill.BackgroundColor3 = T.ACCENT
+floatFill.BorderSizePixel  = 0
+floatFill.ZIndex           = 15
+floatFill.Parent           = floatTrack
+corner(floatFill, 3)
+local ffGrad = Instance.new("UIGradient")
+ffGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(60,220,120)),
+    ColorSequenceKeypoint.new(0.35, T.ACCENT),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(220,60,60)),
+})
+ffGrad.Parent = floatFill
+
+local floatDot = Instance.new("Frame")
+floatDot.Size             = UDim2.new(0, 14, 0, 14)
+floatDot.AnchorPoint      = Vector2.new(0.5, 0.5)
+floatDot.Position         = UDim2.new(0, 0, 0.5, 0)
+floatDot.BackgroundColor3 = Color3.fromRGB(255,255,255)
+floatDot.BorderSizePixel  = 0
+floatDot.ZIndex           = 16
+floatDot.Parent           = floatTrack
+corner(floatDot, 7)
+stroke(floatDot, T.ACCENT, 2)
+
+local floatDragging = false
+local function setFloat(x)
+    local rel       = math.clamp((x - floatTrack.AbsolutePosition.X) / floatTrack.AbsoluteSize.X, 0, 1)
+    selectedFloat   = math.floor(rel * 100) / 100
+    floatVal.Text   = string.format("%.2f", selectedFloat)
+    tween(floatFill, FAST, { Size = UDim2.new(rel, 0, 1, 0) })
+    tween(floatDot,  FAST, { Position = UDim2.new(rel, 0, 0.5, 0) })
+    if knifeActive then applyKnifeHook() end
+end
+
+floatTrack.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 then floatDragging = true; setFloat(inp.Position.X) end
+end)
+UserInputService.InputChanged:Connect(function(inp)
+    if floatDragging and inp.UserInputType == Enum.UserInputType.MouseMovement then setFloat(inp.Position.X) end
+end)
+UserInputService.InputEnded:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1 then floatDragging = false end
+end)
+
+-- quick preset buttons
+local presetRow = Instance.new("Frame")
+presetRow.Size             = UDim2.new(1, 0, 0, 34)
+presetRow.BackgroundColor3 = T.BG
+presetRow.BorderSizePixel  = 0
+presetRow.ZIndex           = 13
+presetRow.Parent           = skinPage
+corner(presetRow, 7)
+stroke(presetRow, T.BORDER, 1)
+
+local presetLayout = Instance.new("UIListLayout")
+presetLayout.FillDirection  = Enum.FillDirection.Horizontal
+presetLayout.Padding        = UDim.new(0, 4)
+presetLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+presetLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
+presetLayout.Parent         = presetRow
+
+local presets = { {"FN", 0.00}, {"MW", 0.10}, {"FT", 0.20}, {"WW", 0.40}, {"BS", 0.75} }
+for _, p in ipairs(presets) do
+    local pb = Instance.new("TextButton")
+    pb.Text              = p[1]
+    pb.Font              = Enum.Font.GothamBold
+    pb.TextSize          = 11
+    pb.TextColor3        = T.TEXT
+    pb.BackgroundColor3  = T.TAB_IDLE
+    pb.Size              = UDim2.new(0, 56, 0, 24)
+    pb.BorderSizePixel   = 0
+    pb.AutoButtonColor   = false
+    pb.ZIndex            = 14
+    pb.Parent            = presetRow
+    corner(pb, 5)
+
+    pb.MouseEnter:Connect(function() tween(pb, FAST, { BackgroundColor3 = T.ACCENT }) end)
+    pb.MouseLeave:Connect(function() tween(pb, FAST, { BackgroundColor3 = T.TAB_IDLE }) end)
+    pb.MouseButton1Click:Connect(function()
+        local rel = p[2]
+        selectedFloat   = rel
+        floatVal.Text   = string.format("%.2f", rel)
+        tween(floatFill, FAST, { Size = UDim2.new(rel, 0, 1, 0) })
+        tween(floatDot,  FAST, { Position = UDim2.new(rel, 0, 0.5, 0) })
+        if knifeActive then applyKnifeHook() end
+    end)
+end
+
+-- ─────────────────────────────────────────
 --           🎯 AIM TAB  — full rewrite
 -- ─────────────────────────────────────────
 local aimPage = makeTab("Aim", "🎯", 3)
