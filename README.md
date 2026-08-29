@@ -1,8 +1,9 @@
 # ZABOTA
 
-Roblox Lua UI-библиотека и загрузчик меню (`ZabotaLib.lua`, `zabota_loader.lua`, `zabota_bootstrap.lua`).
+Roblox Lua UI-библиотека и загрузчики меню (`ZabotaLib.lua`, `zabota_loader.lua`,
+`zabota_bootstrap.lua`, `zabota_menu.lua`).
 
-## Как запустить меню
+## Как запустить меню (ZabotaLib UI: AimBot / Visual / Config)
 
 **Важно:** нельзя просто вставлять `loadstring(game:HttpGet(url))()` одной строкой.
 Если этот самый первый `HttpGet`-запрос по какой-то причине (временный сбой сети,
@@ -94,11 +95,83 @@ end
 - Слишком много запросов подряд — GitHub временно режет rate-limit по IP
   (тогда достаточно подождать 1-2 минуты и запустить скрипт заново).
 
+## Как запустить standalone-скрипт (zabota_menu.lua: Speed / Fly / ESP / Triggerbot / Silent Aim / Hitboxes / Magnet / 1v1 Stick)
+
+`zabota_menu.lua` — отдельный самодостаточный скрипт (не использует `ZabotaLib.lua`),
+своё собственное простое GUI-меню (`RightShift` — открыть/закрыть), HUD-статус в
+верхнем левом углу и набор функций для San Diego Border RP (спидхак, полёт, ESP по
+фракциям, звёзды wanted, телепорт к цели/деньгам, магнит, фикс стрельбы из машины,
+расширение хитбоксов, triggerbot, hard 1v1 stick, silent aim с FOV-кругом).
+
+Используй тот же безопасный подход — не однострочник, а сниппет с несколькими
+зеркалами. Просто замени `zabota_bootstrap.lua` на `zabota_menu.lua` в списке
+`ZABOTA_MIRRORS` из сниппета выше, либо вставляй готовый вариант целиком:
+
+```lua
+local ZABOTA_MIRRORS = {
+    "https://raw.githubusercontent.com/dagpker-glitch/ZABOTA/main/zabota_menu.lua?t=" .. tostring(os.time()),
+    "https://cdn.jsdelivr.net/gh/dagpker-glitch/ZABOTA@main/zabota_menu.lua",
+    "https://fastly.jsdelivr.net/gh/dagpker-glitch/ZABOTA@main/zabota_menu.lua",
+    "https://raw.githack.com/dagpker-glitch/ZABOTA/main/zabota_menu.lua",
+}
+
+local function ZABOTA_safeFetch(url)
+    local ok, res = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+    if ok and type(res) == "string" and res ~= "" then
+        return res
+    end
+    return nil, ok and "empty response" or tostring(res)
+end
+
+local ZABOTA_content
+local ZABOTA_lastErr = "unknown"
+
+for _, url in ipairs(ZABOTA_MIRRORS) do
+    for attempt = 1, 2 do
+        local result, err = ZABOTA_safeFetch(url)
+        if result then
+            ZABOTA_content = result
+            break
+        end
+        ZABOTA_lastErr = err or ZABOTA_lastErr
+        task.wait(1)
+    end
+    if ZABOTA_content then break end
+end
+
+if not ZABOTA_content then
+    warn("[ZABOTA] Не удалось загрузить zabota_menu.lua ни с одного из " .. #ZABOTA_MIRRORS .. " зеркал. Последняя ошибка: " .. tostring(ZABOTA_lastErr))
+    warn("[ZABOTA] Проверь: 1) включён ли HttpService/HttpGet в твоём экзекьюторе; 2) не блокирует ли антивирус/провайдер github.com и jsdelivr.net; 3) попробуй запустить скрипт снова через 10-15 секунд.")
+    return
+end
+
+local ZABOTA_chunk, ZABOTA_compileErr = loadstring(ZABOTA_content)
+if not ZABOTA_chunk then
+    warn("[ZABOTA] Файл загрузился, но не скомпилировался: " .. tostring(ZABOTA_compileErr))
+    return
+end
+
+local ZABOTA_ok, ZABOTA_runErr = pcall(ZABOTA_chunk)
+if not ZABOTA_ok then
+    warn("[ZABOTA] Ошибка при выполнении: " .. tostring(ZABOTA_runErr))
+end
+```
+
+**Горячие клавиши `zabota_menu.lua`:** `RightShift` — открыть/закрыть меню,
+`F1` — Speed, `F2` — TP to Priority Target, `F4` — Triggerbot, `F5` — Fly,
+`F6` — Hitbox Expander, `F7` — Silent Aim, `H` — Magnet, `J` — TP to Dropped Cash,
+`X` — Hard 1v1 Stick, `G` — TP к курсору.
+
 ## Структура файлов
 
-- `ZabotaLib.lua` — сама UI-библиотека (окна, вкладки, карточки, чекбоксы, слайдеры,
+- `ZabotaLib.lua` — UI-библиотека (окна, вкладки, карточки, чекбоксы, слайдеры,
   ESP-превью, список оружия и т.д.).
 - `zabota_loader.lua` — сборка конкретного меню (вкладки AimBot / Visual / Config)
   на основе `ZabotaLib.lua`. Тянет `ZabotaLib.lua` с несколькими зеркалами и retry.
-- `zabota_bootstrap.lua` — точка входа, которую тянет стартовый сниппет выше.
-  Тянет `zabota_loader.lua` с несколькими зеркалами и retry.
+- `zabota_bootstrap.lua` — точка входа для ZabotaLib-меню. Тянет `zabota_loader.lua`
+  с несколькими зеркалами и retry.
+- `zabota_menu.lua` — отдельный standalone-скрипт со своим GUI и набором фич
+  (Speed/Fly/ESP/Triggerbot/Silent Aim/Hitboxes/Magnet/1v1 Stick) для San Diego
+  Border RP. Не зависит от `ZabotaLib.lua`.
