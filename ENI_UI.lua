@@ -992,65 +992,292 @@ addButton(skinPage, "Reset Character", function()
 end)
 
 -- ─────────────────────────────────────────
---           🎯 AIM TAB
+--           🎯 AIM TAB  — full rewrite
 -- ─────────────────────────────────────────
 local aimPage = makeTab("Aim", "🎯", 3)
 
--- AIM STATE
-local aimEnabled    = false
-local aimFOV        = 120
-local aimSmooth     = 8
-local aimPointCount = 3   -- how many hitbox parts to scan
-local aimKey        = Enum.KeyCode.Q
-local aimConn       = nil
-local aimTeamCheck  = false
-local aimWallCheck  = true
+-- ── helpers ──────────────────────────────
+local function makeKeyBind(page, label, default, onChange)
+    local row = Instance.new("Frame")
+    row.Size             = UDim2.new(1, 0, 0, 38)
+    row.BackgroundColor3 = T.BG
+    row.BorderSizePixel  = 0
+    row.ZIndex           = 13
+    row.Parent           = page
+    corner(row, 7)
+    stroke(row, T.BORDER, 1)
 
--- Ordered hitbox parts by priority (head first)
-local AIM_PARTS = {
-    "Head",
-    "HumanoidRootPart",
-    "UpperTorso",
-    "LeftUpperArm",
-    "RightUpperArm",
-    "LeftUpperLeg",
-    "RightUpperLeg",
-    "LowerTorso",
+    local lbl = Instance.new("TextLabel")
+    lbl.Text             = label
+    lbl.Font             = Enum.Font.Gotham
+    lbl.TextSize         = 13
+    lbl.TextColor3       = T.TEXT
+    lbl.BackgroundTransparency = 1
+    lbl.Position         = UDim2.new(0, 12, 0, 0)
+    lbl.Size             = UDim2.new(0.55, 0, 1, 0)
+    lbl.TextXAlignment   = Enum.TextXAlignment.Left
+    lbl.ZIndex           = 14
+    lbl.Parent           = row
+
+    local btn = Instance.new("TextButton")
+    btn.Text             = "[ " .. default.Name .. " ]"
+    btn.Font             = Enum.Font.GothamBold
+    btn.TextSize         = 11
+    btn.TextColor3       = T.ACCENT
+    btn.BackgroundColor3 = T.PANEL
+    btn.Size             = UDim2.new(0, 90, 0, 24)
+    btn.Position         = UDim2.new(1, -100, 0.5, -12)
+    btn.BorderSizePixel  = 0
+    btn.AutoButtonColor  = false
+    btn.ZIndex           = 14
+    btn.Parent           = row
+    corner(btn, 6)
+    stroke(btn, T.BORDER, 1)
+
+    local current = default
+    local listening = false
+    btn.MouseButton1Click:Connect(function()
+        if listening then return end
+        listening = true
+        btn.Text      = "[ ... ]"
+        btn.TextColor3 = T.ACCENT2
+        local c
+        c = UserInputService.InputBegan:Connect(function(inp, gp)
+            if gp then return end
+            if inp.UserInputType == Enum.UserInputType.Keyboard then
+                current       = inp.KeyCode
+                btn.Text      = "[ " .. inp.KeyCode.Name .. " ]"
+                btn.TextColor3 = T.ACCENT
+                listening     = false
+                if onChange then onChange(current) end
+                c:Disconnect()
+            end
+        end)
+    end)
+    return function() return current end
+end
+
+local function addCheckBox(page, text, default, callback)
+    local state = default or false
+
+    local row = Instance.new("Frame")
+    row.Size             = UDim2.new(1, 0, 0, 34)
+    row.BackgroundColor3 = T.BG
+    row.BorderSizePixel  = 0
+    row.ZIndex           = 13
+    row.Parent           = page
+    corner(row, 7)
+    stroke(row, T.BORDER, 1)
+
+    local box = Instance.new("Frame")
+    box.Size             = UDim2.new(0, 18, 0, 18)
+    box.Position         = UDim2.new(0, 10, 0.5, -9)
+    box.BackgroundColor3 = state and T.ACCENT or T.TOGGLE_OFF
+    box.BorderSizePixel  = 0
+    box.ZIndex           = 14
+    box.Parent           = row
+    corner(box, 4)
+    stroke(box, T.BORDER, 1)
+
+    local check = Instance.new("TextLabel")
+    check.Text             = state and "✓" or ""
+    check.Font             = Enum.Font.GothamBold
+    check.TextSize         = 12
+    check.TextColor3       = Color3.fromRGB(255,255,255)
+    check.BackgroundTransparency = 1
+    check.Size             = UDim2.new(1,0,1,0)
+    check.TextXAlignment   = Enum.TextXAlignment.Center
+    check.ZIndex           = 15
+    check.Parent           = box
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Text             = text
+    lbl.Font             = Enum.Font.Gotham
+    lbl.TextSize         = 12
+    lbl.TextColor3       = T.TEXT
+    lbl.BackgroundTransparency = 1
+    lbl.Position         = UDim2.new(0, 36, 0, 0)
+    lbl.Size             = UDim2.new(1, -46, 1, 0)
+    lbl.TextXAlignment   = Enum.TextXAlignment.Left
+    lbl.ZIndex           = 14
+    lbl.Parent           = row
+
+    local function setState(v)
+        state = v
+        tween(box, FAST, { BackgroundColor3 = state and T.ACCENT or T.TOGGLE_OFF })
+        check.Text = state and "✓" or ""
+        if callback then callback(state) end
+    end
+
+    local clickBtn = Instance.new("TextButton")
+    clickBtn.Text             = ""
+    clickBtn.BackgroundTransparency = 1
+    clickBtn.Size             = UDim2.new(1,0,1,0)
+    clickBtn.ZIndex           = 16
+    clickBtn.Parent           = row
+    clickBtn.MouseButton1Click:Connect(function() setState(not state) end)
+
+    return setState, function() return state end
+end
+
+-- ── AIM STATE ────────────────────────────
+local aimEnabled      = false
+local aimFOVBase      = 150       -- base FOV px
+local aimFOVCurrent   = 150       -- live (dynamic)
+local aimSmooth       = 6         -- lerp divisor
+local aimKey          = Enum.KeyCode.Q
+local aimTeamCheck    = false
+local aimWallCheck    = true
+local aimDynFOV       = true      -- dynamic FOV on/off
+local aimDynFOVVelScale  = 0.4    -- how much velocity expands FOV
+local aimDynFOVDistScale = 0.15   -- how much distance shrinks FOV
+local aimPrediction   = true      -- velocity prediction
+local aimPredStrength = 0.12      -- ping factor multiplier
+local aimPeekAssist   = true      -- peek detection lock
+local aimPeekBurst    = 3         -- how many frames to snap on peek
+
+-- Per-part enabled table  (true = aim at this part)
+local PART_DEFS = {
+    { key = "Head",          label = "Head",          enabled = true  },
+    { key = "UpperTorso",    label = "Upper Torso",   enabled = true  },
+    { key = "LowerTorso",    label = "Lower Torso",   enabled = false },
+    { key = "HumanoidRootPart", label = "Root (HRP)", enabled = false },
+    { key = "LeftUpperArm",  label = "Left Arm",      enabled = false },
+    { key = "RightUpperArm", label = "Right Arm",     enabled = false },
+    { key = "LeftUpperLeg",  label = "Left Leg",      enabled = false },
+    { key = "RightUpperLeg", label = "Right Leg",     enabled = false },
 }
 
--- FOV circle via Drawing
-local fovCircle
+-- velocity history per player  { [player] = {pos, pos, pos...} }
+local velHistory = {}
+local prevOccluded = {}  -- { [player] = bool }  for peek detect
+local peekFrames   = {}  -- { [player] = int }   countdown
+
+-- ── FOV DRAWINGS ─────────────────────────
+local fovCircleMain, fovCircleDyn
 pcall(function()
-    fovCircle            = Drawing.new("Circle")
-    fovCircle.Visible    = false
-    fovCircle.Thickness  = 1.5
-    fovCircle.Color      = Color3.fromRGB(138, 99, 255)
-    fovCircle.Filled     = false
-    fovCircle.Transparency = 1
-    fovCircle.NumSides   = 64
-    fovCircle.Radius     = aimFOV
-    fovCircle.Position   = Vector2.new(workspace.CurrentCamera.ViewportSize.X/2,
-                                       workspace.CurrentCamera.ViewportSize.Y/2)
+    fovCircleMain           = Drawing.new("Circle")
+    fovCircleMain.Visible   = false
+    fovCircleMain.Thickness = 1.2
+    fovCircleMain.Color     = Color3.fromRGB(138, 99, 255)
+    fovCircleMain.Filled    = false
+    fovCircleMain.Transparency = 1
+    fovCircleMain.NumSides  = 80
+    fovCircleMain.Radius    = aimFOVBase
+
+    fovCircleDyn            = Drawing.new("Circle")
+    fovCircleDyn.Visible    = false
+    fovCircleDyn.Thickness  = 0.7
+    fovCircleDyn.Color      = Color3.fromRGB(99, 180, 255)
+    fovCircleDyn.Filled     = false
+    fovCircleDyn.Transparency = 1
+    fovCircleDyn.NumSides   = 80
+    fovCircleDyn.Radius     = aimFOVBase
 end)
 
-local function updateFOVCircle()
+local function updateDrawings()
+    local cam = workspace.CurrentCamera
+    local cx  = cam.ViewportSize.X / 2
+    local cy  = cam.ViewportSize.Y / 2
+    local center = Vector2.new(cx, cy)
     pcall(function()
-        if fovCircle then
-            fovCircle.Radius   = aimFOV
-            fovCircle.Visible  = aimEnabled
-            local vp = workspace.CurrentCamera.ViewportSize
-            fovCircle.Position = Vector2.new(vp.X / 2, vp.Y / 2)
-        end
+        fovCircleMain.Position = center
+        fovCircleMain.Radius   = aimFOVBase
+        fovCircleMain.Visible  = aimEnabled
+
+        fovCircleDyn.Position  = center
+        fovCircleDyn.Radius    = aimFOVCurrent
+        fovCircleDyn.Visible   = aimEnabled and aimDynFOV and (aimFOVCurrent ~= aimFOVBase)
     end)
 end
 
-local function getTarget()
-    local cam    = workspace.CurrentCamera
-    local vp     = cam.ViewportSize
-    local center = Vector2.new(vp.X / 2, vp.Y / 2)
-    local best, bestDist = nil, aimFOV
+-- ── CORE LOGIC ───────────────────────────
+local function getEnabledParts()
+    local list = {}
+    for _, def in ipairs(PART_DEFS) do
+        if def.enabled then list[#list+1] = def.key end
+    end
+    return list
+end
 
-    -- collect parts to check (up to aimPointCount)
+local function isOccluded(pos, pChar)
+    if not aimWallCheck then return false end
+    local cam    = workspace.CurrentCamera
+    local origin = cam.CFrame.Position
+    local dir    = pos - origin
+    local ray    = Ray.new(origin + dir.Unit * 0.5, dir * 0.98)
+    local hit    = workspace:FindPartOnRayWithIgnoreList(ray, { lp.Character })
+    return hit and not hit:IsDescendantOf(pChar)
+end
+
+local function getPredictedPos(player, part, dt)
+    if not aimPrediction then return part.Position end
+    local pid = player.UserId
+    local history = velHistory[pid]
+    if not history then return part.Position end
+
+    -- weighted average of last 3 velocity samples
+    local count  = #history
+    if count < 2 then return part.Position end
+
+    local samples = math.min(3, count - 1)
+    local velSum  = Vector3.zero
+    local weightTotal = 0
+    for i = count, count - samples + 1, -1 do
+        local w   = count - i + 1
+        local vel = history[i] - history[i - 1]
+        velSum    = velSum + vel * w
+        weightTotal = weightTotal + w
+    end
+    local avgVel = velSum / weightTotal
+
+    -- ping estimate via stats if available
+    local ping = 0
+    pcall(function()
+        ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 1000
+    end)
+
+    local lead = (ping * aimPredStrength + dt) * 60
+    return part.Position + avgVel * lead
+end
+
+local function computeDynFOV(targetPos)
+    if not aimDynFOV then
+        aimFOVCurrent = aimFOVBase
+        return aimFOVBase
+    end
+    local cam  = workspace.CurrentCamera
+    local dist = (targetPos - cam.CFrame.Position).Magnitude
+
+    -- try to get target velocity magnitude from history
+    local velMag = 0
+    for _, player in ipairs(Players:GetPlayers()) do
+        local pChar = player.Character
+        if not pChar then continue end
+        local hrp = pChar:FindFirstChild("HumanoidRootPart")
+        if hrp and (hrp.Position - targetPos).Magnitude < 5 then
+            local pid = player.UserId
+            local h   = velHistory[pid]
+            if h and #h >= 2 then
+                velMag = (h[#h] - h[#h-1]).Magnitude * 60
+            end
+            break
+        end
+    end
+
+    local expanded  = aimFOVBase + velMag   * aimDynFOVVelScale
+    local shrunk    = expanded   - dist      * aimDynFOVDistScale
+    aimFOVCurrent   = math.clamp(shrunk, aimFOVBase * 0.4, aimFOVBase * 2.5)
+    return aimFOVCurrent
+end
+
+local function getTarget(dt)
+    local cam      = workspace.CurrentCamera
+    local vp       = cam.ViewportSize
+    local center   = Vector2.new(vp.X / 2, vp.Y / 2)
+    local parts    = getEnabledParts()
+    local best, bestDist, bestPredPos = nil, math.huge, nil
+
     for _, player in ipairs(Players:GetPlayers()) do
         if player == lp then continue end
         if aimTeamCheck and player.Team == lp.Team then continue end
@@ -1060,173 +1287,168 @@ local function getTarget()
         local hum = pChar:FindFirstChildOfClass("Humanoid")
         if not hum or hum.Health <= 0 then continue end
 
-        -- check each point up to aimPointCount
-        for i = 1, math.min(aimPointCount, #AIM_PARTS) do
-            local part = pChar:FindFirstChild(AIM_PARTS[i])
+        local pid = player.UserId
+
+        -- update velocity history
+        local hrp = pChar:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            if not velHistory[pid] then velHistory[pid] = {} end
+            local h = velHistory[pid]
+            h[#h+1] = hrp.Position
+            if #h > 10 then table.remove(h, 1) end
+        end
+
+        -- peek assist detection
+        local occ = isOccluded(hrp and hrp.Position or Vector3.zero, pChar)
+        if aimPeekAssist then
+            if prevOccluded[pid] == true and not occ then
+                peekFrames[pid] = aimPeekBurst
+            end
+            prevOccluded[pid] = occ
+        end
+        local isPeeking = (peekFrames[pid] or 0) > 0
+
+        for _, partName in ipairs(parts) do
+            local part = pChar:FindFirstChild(partName)
             if not part then continue end
 
-            local pos, onScreen = cam:WorldToViewportPoint(part.Position)
-            if not onScreen then continue end
+            local predPos   = getPredictedPos(player, part, dt)
+            local proj, vis = cam:WorldToViewportPoint(predPos)
+            if not vis then continue end
 
-            local screenPos = Vector2.new(pos.X, pos.Y)
-            local dist      = (screenPos - center).Magnitude
+            local screenPt = Vector2.new(proj.X, proj.Y)
+            local fov      = isPeeking and aimFOVBase * 1.6 or computeDynFOV(predPos)
+            local dist2d   = (screenPt - center).Magnitude
 
-            if dist < bestDist then
-                -- optional wall check
-                if aimWallCheck then
-                    local origin    = cam.CFrame.Position
-                    local direction = (part.Position - origin)
-                    local ray       = Ray.new(origin, direction)
-                    local hit       = workspace:FindPartOnRayWithIgnoreList(
-                        ray, { lp.Character, cam }
-                    )
-                    if hit and not hit:IsDescendantOf(pChar) then continue end
-                end
-                bestDist = dist
-                best     = part
+            if dist2d > fov then continue end
+
+            -- wall check (skip if peeking — we want to snap immediately)
+            if not isPeeking and isOccluded(predPos, pChar) then continue end
+
+            -- 3D distance tiebreaker so we prefer closer players
+            local dist3d = proj.Z
+            local score  = dist2d + dist3d * 0.1
+
+            if score < bestDist then
+                bestDist    = score
+                best        = part
+                bestPredPos = predPos
             end
+        end
+
+        if (peekFrames[pid] or 0) > 0 then
+            peekFrames[pid] = peekFrames[pid] - 1
         end
     end
 
-    return best
+    return best, bestPredPos
 end
+
+-- ── MAIN LOOP ────────────────────────────
+local aimConn
 
 local function startAim()
     if aimConn then aimConn:Disconnect() end
     local cam = workspace.CurrentCamera
 
-    aimConn = RunService.Heartbeat:Connect(function()
-        updateFOVCircle()
+    aimConn = RunService.Heartbeat:Connect(function(dt)
+        updateDrawings()
+
         if not UserInputService:IsKeyDown(aimKey) then return end
+        if not aimEnabled then return end
 
-        local target = getTarget()
-        if not target then return end
+        local target, predPos = getTarget(dt)
+        if not target or not predPos then return end
 
-        local targetCF = CFrame.new(cam.CFrame.Position,
-            target.Position + Vector3.new(0, 0, 0))
-
-        cam.CFrame = cam.CFrame:Lerp(targetCF, 1 / math.max(aimSmooth, 1))
+        local targetCF  = CFrame.new(cam.CFrame.Position, predPos)
+        local lerpAlpha = math.clamp(1 / math.max(aimSmooth, 0.5), 0.01, 1)
+        cam.CFrame      = cam.CFrame:Lerp(targetCF, lerpAlpha)
     end)
 end
 
 local function stopAim()
-    if aimConn then aimConn:Disconnect() aimConn = nil end
-    updateFOVCircle()
+    if aimConn then aimConn:Disconnect(); aimConn = nil end
+    pcall(function()
+        if fovCircleMain then fovCircleMain.Visible = false end
+        if fovCircleDyn  then fovCircleDyn.Visible  = false end
+    end)
 end
 
+-- ── UI ────────────────────────────────────
 addSection(aimPage, "Aimbot")
 
 addToggle(aimPage, "Enable Aimbot", false, function(on)
     aimEnabled = on
     if on then startAim() else stopAim() end
-    updateFOVCircle()
 end)
 
-addSection(aimPage, "Hit Points")
+makeKeyBind(aimPage, "Activate Key:", Enum.KeyCode.Q, function(k) aimKey = k end)
 
--- POINT COUNT SLIDER — core feature LO asked for
-addSlider(aimPage, "Scan Points  (1=Head only, 8=All)", 1, 8, 3, function(v)
-    aimPointCount = v
+addSection(aimPage, "Hit Parts  (toggle each)")
+
+-- Per-part checkbox grid
+for i, def in ipairs(PART_DEFS) do
+    local idx = i
+    addCheckBox(aimPage, def.label, def.enabled, function(v)
+        PART_DEFS[idx].enabled = v
+    end)
+end
+
+addSection(aimPage, "FOV")
+
+addSlider(aimPage, "Base FOV (px)", 30, 600, 150, function(v)
+    aimFOVBase = v
+    if not aimDynFOV then aimFOVCurrent = v end
+    updateDrawings()
 end)
 
--- visual labels so the user knows what each number means
-local pointInfoRow = Instance.new("Frame")
-pointInfoRow.Size             = UDim2.new(1, 0, 0, 52)
-pointInfoRow.BackgroundColor3 = T.BG
-pointInfoRow.BorderSizePixel  = 0
-pointInfoRow.ZIndex           = 13
-pointInfoRow.Parent           = aimPage
-corner(pointInfoRow, 7)
-stroke(pointInfoRow, T.BORDER, 1)
-
-local pointMap = Instance.new("TextLabel")
-pointMap.Text = "1→Head  2→+Root  3→+Torso  4→+L.Arm  5→+R.Arm  6→+L.Leg  7→+R.Leg  8→+Lo.Torso"
-pointMap.Font              = Enum.Font.Gotham
-pointMap.TextSize          = 10
-pointMap.TextColor3        = T.SUBTEXT
-pointMap.BackgroundTransparency = 1
-pointMap.Size              = UDim2.new(1, -20, 1, 0)
-pointMap.Position          = UDim2.new(0, 10, 0, 0)
-pointMap.TextXAlignment    = Enum.TextXAlignment.Left
-pointMap.TextWrapped       = true
-pointMap.ZIndex            = 14
-pointMap.Parent            = pointInfoRow
-
-addSection(aimPage, "Settings")
-
-addSlider(aimPage, "FOV Radius", 30, 500, 120, function(v)
-    aimFOV = v
-    updateFOVCircle()
+addToggle(aimPage, "Dynamic FOV  (expands with target velocity)", true, function(on)
+    aimDynFOV = on
+    if not on then aimFOVCurrent = aimFOVBase end
 end)
 
-addSlider(aimPage, "Smoothness  (1=Snap  20=Butter)", 1, 20, 8, function(v)
+addSlider(aimPage, "Dyn FOV — Velocity Scale  ×0.01", 0, 200, 40, function(v)
+    aimDynFOVVelScale = v * 0.01
+end)
+
+addSlider(aimPage, "Dyn FOV — Distance Shrink  ×0.01", 0, 100, 15, function(v)
+    aimDynFOVDistScale = v * 0.01
+end)
+
+addSection(aimPage, "Smoothness")
+
+addSlider(aimPage, "Smooth  (1=Instant  30=Butter)", 1, 30, 6, function(v)
     aimSmooth = v
 end)
 
-addToggle(aimPage, "Wall Check  (no shoot through walls)", true, function(on)
+addSection(aimPage, "Prediction")
+
+addToggle(aimPage, "Velocity Prediction", true, function(on)
+    aimPrediction = on
+end)
+
+addSlider(aimPage, "Prediction Strength  ×0.01", 1, 50, 12, function(v)
+    aimPredStrength = v * 0.01
+end)
+
+addSection(aimPage, "Peek Assist")
+
+addToggle(aimPage, "Peek Assist  (snap on exit cover)", true, function(on)
+    aimPeekAssist = on
+end)
+
+addSlider(aimPage, "Peek Snap Frames", 1, 12, 3, function(v)
+    aimPeekBurst = v
+end)
+
+addSection(aimPage, "Filters")
+
+addToggle(aimPage, "Wall Check", true, function(on)
     aimWallCheck = on
 end)
 
-addToggle(aimPage, "Team Check  (skip same team)", false, function(on)
+addToggle(aimPage, "Team Check  (skip teammates)", false, function(on)
     aimTeamCheck = on
-end)
-
-addSection(aimPage, "Aim Key")
-
--- key bind row
-local keyRow = Instance.new("Frame")
-keyRow.Size             = UDim2.new(1, 0, 0, 38)
-keyRow.BackgroundColor3 = T.BG
-keyRow.BorderSizePixel  = 0
-keyRow.ZIndex           = 13
-keyRow.Parent           = aimPage
-corner(keyRow, 7)
-stroke(keyRow, T.BORDER, 1)
-
-local keyLbl = Instance.new("TextLabel")
-keyLbl.Text              = "Hold Key:"
-keyLbl.Font              = Enum.Font.Gotham
-keyLbl.TextSize          = 13
-keyLbl.TextColor3        = T.TEXT
-keyLbl.BackgroundTransparency = 1
-keyLbl.Position          = UDim2.new(0, 12, 0, 0)
-keyLbl.Size              = UDim2.new(0.5, 0, 1, 0)
-keyLbl.TextXAlignment    = Enum.TextXAlignment.Left
-keyLbl.ZIndex            = 14
-keyLbl.Parent            = keyRow
-
-local keyBind = Instance.new("TextButton")
-keyBind.Text              = "[ Q ]"
-keyBind.Font              = Enum.Font.GothamBold
-keyBind.TextSize          = 12
-keyBind.TextColor3        = T.ACCENT
-keyBind.BackgroundColor3  = T.PANEL
-keyBind.Size              = UDim2.new(0, 80, 0, 26)
-keyBind.Position          = UDim2.new(1, -92, 0.5, -13)
-keyBind.BorderSizePixel   = 0
-keyBind.AutoButtonColor   = false
-keyBind.ZIndex            = 14
-keyBind.Parent            = keyRow
-corner(keyBind, 6)
-stroke(keyBind, T.BORDER, 1)
-
-local listeningKey = false
-keyBind.MouseButton1Click:Connect(function()
-    if listeningKey then return end
-    listeningKey = true
-    keyBind.Text      = "[ ... ]"
-    keyBind.TextColor3 = T.ACCENT2
-    local conn
-    conn = UserInputService.InputBegan:Connect(function(inp, gp)
-        if gp then return end
-        if inp.UserInputType == Enum.UserInputType.Keyboard then
-            aimKey        = inp.KeyCode
-            keyBind.Text  = "[ " .. inp.KeyCode.Name .. " ]"
-            keyBind.TextColor3 = T.ACCENT
-            listeningKey  = false
-            conn:Disconnect()
-        end
-    end)
 end)
 
 -- ─────────────────────────────────────────
@@ -1237,14 +1459,20 @@ task.delay(0.12, function()
     if btn then btn.MouseButton1Click:Fire() end
 end)
 
--- Cleanup FOV circle on gui destroy
+-- Cleanup on destroy
 gui.AncestryChanged:Connect(function()
-    pcall(function() if fovCircle then fovCircle:Remove() end end)
+    pcall(function()
+        if fovCircleMain then fovCircleMain:Remove() end
+        if fovCircleDyn  then fovCircleDyn:Remove()  end
+    end)
     stopAim()
 end)
 
 -- Respawn character update
 lp.CharacterAdded:Connect(function(c)
     char = c
+    velHistory  = {}
+    prevOccluded = {}
+    peekFrames   = {}
 end)
 
