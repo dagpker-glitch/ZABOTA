@@ -16,9 +16,20 @@ Roblox Lua UI-библиотека и загрузчик меню (`ZabotaLib.lu
 **на стороне того скрипта, который ты вставляешь в executor**, а не только
 внутри удалённого файла.
 
-Вставляй в executor вот этот безопасный стартовый сниппет (не однострочник):
+Вставляй в executor вот этот безопасный стартовый сниппет (не однострочник).
+Он перебирает **несколько разных доменов-зеркал**, а не только один —
+если у тебя заблокирован/недоступен именно `raw.githubusercontent.com`
+(бывает из-за сети/провайдера/настроек экзекьютора), скрипт автоматически
+попробует `jsdelivr`, `fastly.jsdelivr` и `githack`:
 
 ```lua
+local ZABOTA_MIRRORS = {
+    "https://raw.githubusercontent.com/dagpker-glitch/ZABOTA/main/zabota_bootstrap.lua?t=" .. tostring(os.time()),
+    "https://cdn.jsdelivr.net/gh/dagpker-glitch/ZABOTA@main/zabota_bootstrap.lua",
+    "https://fastly.jsdelivr.net/gh/dagpker-glitch/ZABOTA@main/zabota_bootstrap.lua",
+    "https://raw.githack.com/dagpker-glitch/ZABOTA/main/zabota_bootstrap.lua",
+}
+
 local function ZABOTA_safeFetch(url)
     local ok, res = pcall(function()
         return game:HttpGet(url, true)
@@ -26,20 +37,28 @@ local function ZABOTA_safeFetch(url)
     if ok and type(res) == "string" and res ~= "" then
         return res
     end
-    return nil
+    return nil, ok and "empty response" or tostring(res)
 end
 
-local ZABOTA_url = "https://raw.githubusercontent.com/dagpker-glitch/ZABOTA/main/zabota_bootstrap.lua?t=" .. tostring(os.time())
-
 local ZABOTA_content
-for i = 1, 3 do
-    ZABOTA_content = ZABOTA_safeFetch(ZABOTA_url)
+local ZABOTA_lastErr = "unknown"
+
+for _, url in ipairs(ZABOTA_MIRRORS) do
+    for attempt = 1, 2 do
+        local result, err = ZABOTA_safeFetch(url)
+        if result then
+            ZABOTA_content = result
+            break
+        end
+        ZABOTA_lastErr = err or ZABOTA_lastErr
+        task.wait(1)
+    end
     if ZABOTA_content then break end
-    task.wait(1)
 end
 
 if not ZABOTA_content then
-    warn("[ZABOTA] Не удалось загрузить zabota_bootstrap.lua после 3 попыток. Проверь интернет / доступ HttpGet к raw.githubusercontent.com в своём экзекьюторе, затем попробуй запустить скрипт ещё раз.")
+    warn("[ZABOTA] Не удалось загрузить скрипт ни с одного из " .. #ZABOTA_MIRRORS .. " зеркал. Последняя ошибка: " .. tostring(ZABOTA_lastErr))
+    warn("[ZABOTA] Проверь: 1) включён ли HttpService/HttpGet в твоём экзекьюторе; 2) не блокирует ли антивирус/провайдер github.com и jsdelivr.net; 3) попробуй запустить скрипт снова через 10-15 секунд.")
     return
 end
 
@@ -58,9 +77,22 @@ end
 Этот сниппет:
 1. Оборачивает **самый первый** `HttpGet` в `pcall`, а не только те, что вложены глубже.
 2. Проверяет `type(res) == "string"`, а не просто truthy (пустая строка тоже truthy в Lua).
-3. Делает до 3 попыток с паузой 1 секунда между ними, прежде чем сдаться.
+3. Перебирает **4 разных домена-зеркала** (по 2 попытки на каждый) вместо retry на
+   одном и том же домене — если блокировка/сбой специфичны для одного домена,
+   остальные три всё равно сработают.
 4. Делает `loadstring` и его выполнение отдельными защищёнными шагами, чтобы при
    ошибке ты видел понятное сообщение в консоли, а не голый краш движка.
+
+### Если ошибка всё равно повторяется на всех 4 зеркалах
+
+Это значит, что `game:HttpGet` в принципе не может выйти в интернет в твоём
+случае (не сбой конкретного зеркала). Обычные причины:
+- В экзекьюторе выключена настройка типа "Enable HttpGet" / "Allow HTTP requests".
+- Антивирус, файрвол или DNS-фильтр провайдера блокирует `github.com`/`githubusercontent.com`
+  и `jsdelivr.net` целиком (например, некоторые корпоративные/учебные сети или
+  антивирусы блокируют "подозрительные" домены, связанные с исполнением кода).
+- Слишком много запросов подряд — GitHub временно режет rate-limit по IP
+  (тогда достаточно подождать 1-2 минуты и запустить скрипт заново).
 
 ## Структура файлов
 
