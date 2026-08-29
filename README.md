@@ -3,7 +3,12 @@
 Roblox Lua UI-библиотека и загрузчики меню (`ZabotaLib.lua`, `zabota_loader.lua`,
 `zabota_bootstrap.lua`, `zabota_menu.lua`).
 
-## Как запустить меню (ZabotaLib UI: AimBot / Visual / Config)
+## Рекомендуемый способ — красивое меню ZabotaLib (Movement / Combat / Visual / Exploits / Config)
+
+Это основной, рекомендуемый вариант: те же функции San Diego Border RP
+(Speed, Fly, ESP, Triggerbot, Silent Aim, Hitboxes, Magnet, 1v1 Stick, TP),
+но управляются через красивый интерфейс `ZabotaLib` — с карточками, чекбоксами,
+слайдерами, живым ESP-превью и анимациями, а не через голые серые кнопки.
 
 **Важно:** нельзя просто вставлять `loadstring(game:HttpGet(url))()` одной строкой.
 Если этот самый первый `HttpGet`-запрос по какой-то причине (временный сбой сети,
@@ -95,13 +100,19 @@ end
 - Слишком много запросов подряд — GitHub временно режет rate-limit по IP
   (тогда достаточно подождать 1-2 минуты и запустить скрипт заново).
 
-## Как запустить standalone-скрипт (zabota_menu.lua: Speed / Fly / ESP / Triggerbot / Silent Aim / Hitboxes / Magnet / 1v1 Stick)
+**Горячие клавиши красивого меню (`zabota_bootstrap.lua`):** `RightShift` — открыть/закрыть
+меню, `F1` — Speed, `F2` — TP to Priority Target, `F4` — Triggerbot, `F5` — Fly,
+`F6` — Hitbox Expander, `F7` — Silent Aim, `H` — Magnet, `J` — TP to Dropped Cash,
+`X` — Hard 1v1 Stick, `G` — TP к курсору. Все хоткеи синхронизированы с чекбоксами
+в интерфейсе — можно включать функции и клавишей, и мышью.
 
-`zabota_menu.lua` — отдельный самодостаточный скрипт (не использует `ZabotaLib.lua`),
-своё собственное простое GUI-меню (`RightShift` — открыть/закрыть), HUD-статус в
-верхнем левом углу и набор функций для San Diego Border RP (спидхак, полёт, ESP по
-фракциям, звёзды wanted, телепорт к цели/деньгам, магнит, фикс стрельбы из машины,
-расширение хитбоксов, triggerbot, hard 1v1 stick, silent aim с FOV-кругом).
+## Альтернатива — старый простой GUI (zabota_menu.lua: без карточек/чекбоксов)
+
+`zabota_menu.lua` — исходный самодостаточный скрипт (не использует `ZabotaLib.lua`),
+со своим простым GUI-меню (`RightShift` — открыть/закрыть) на голых серых
+кнопках-переключателях, без карточек/чекбоксов/слайдеров/анимаций. Тот же набор
+функций для San Diego Border RP, что и в красивом меню выше. Оставлен как более
+лёгкий fallback-вариант, если по какой-то причине не подходит `ZabotaLib`.
 
 Используй тот же безопасный подход — не однострочник, а сниппет с несколькими
 зеркалами. Просто замени `zabota_bootstrap.lua` на `zabota_menu.lua` в списке
@@ -168,10 +179,14 @@ end
 
 - `ZabotaLib.lua` — UI-библиотека (окна, вкладки, карточки, чекбоксы, слайдеры,
   ESP-превью, список оружия и т.д.).
-- `zabota_loader.lua` — сборка конкретного меню (вкладки AimBot / Visual / Config)
-  на основе `ZabotaLib.lua`. Тянет `ZabotaLib.lua` с несколькими зеркалами и retry.
-- `zabota_bootstrap.lua` — точка входа для ZabotaLib-меню. Тянет `zabota_loader.lua`
-  с несколькими зеркалами и retry.
-- `zabota_menu.lua` — отдельный standalone-скрипт со своим GUI и набором фич
-  (Speed/Fly/ESP/Triggerbot/Silent Aim/Hitboxes/Magnet/1v1 Stick) для San Diego
-  Border RP. Не зависит от `ZabotaLib.lua`.
+- `zabota_loader.lua` — сборка **основного красивого меню** (вкладки Movement /
+  Combat / Visual / Exploits / Config) на базе `ZabotaLib.lua`, с реальной
+  логикой San Diego Border RP (Speed/Fly/ESP/Triggerbot/Silent Aim/Hitboxes/
+  Magnet/1v1 Stick/TP), управляемой через карточки и чекбоксы. Тянет
+  `ZabotaLib.lua` с несколькими зеркалами и retry.
+- `zabota_bootstrap.lua` — точка входа для красивого меню. Тянет
+  `zabota_loader.lua` с несколькими зеркалами и retry. **Это основной скрипт,
+  который нужно запускать.**
+- `zabota_menu.lua` — альтернативный standalone-скрипт с тем же набором фич,
+  но с простым GUI на голых кнопках без `ZabotaLib`. Используй, только если
+  красивое меню по какой-то причине не подходит.
