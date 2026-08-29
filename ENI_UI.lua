@@ -1003,165 +1003,196 @@ end)
 -- ─────────────────────────────────────────
 addSection(skinPage, "Knife Skinner")
 
--- ── dropdown builder ─────────────────────
-local openDropdown = nil  -- track which dropdown is open to auto-close
+-- ── dropdown builder (list parents to gui overlay, not ScrollingFrame) ───
+local activeListFrame = nil  -- only one open at a time
 
 local function addDropdown(page, label, options, defaultIdx, callback)
     local selectedIdx = defaultIdx or 1
     local isOpen      = false
 
-    -- anchor frame — AutomaticSize so it expands when open
+    -- visible anchor inside the page
     local anchor = Instance.new("Frame")
-    anchor.Name             = "Dropdown_" .. label
-    anchor.Size             = UDim2.new(1, 0, 0, 38)
+    anchor.Name             = "DD_" .. label
+    anchor.Size             = UDim2.new(1, 0, 0, 44)
     anchor.BackgroundColor3 = T.BG
     anchor.BorderSizePixel  = 0
-    anchor.ZIndex           = 20
-    anchor.ClipsDescendants = false
+    anchor.ZIndex           = 13
     anchor.Parent           = page
     corner(anchor, 7)
     stroke(anchor, T.BORDER, 1)
 
-    -- header row
-    local headerBtn = Instance.new("TextButton")
-    headerBtn.Text              = ""
-    headerBtn.Size              = UDim2.new(1, 0, 0, 38)
-    headerBtn.BackgroundTransparency = 1
-    headerBtn.BorderSizePixel   = 0
-    headerBtn.AutoButtonColor   = false
-    headerBtn.ZIndex            = 21
-    headerBtn.Parent            = anchor
+    local subLbl = Instance.new("TextLabel")
+    subLbl.Text              = label
+    subLbl.Font              = Enum.Font.Gotham
+    subLbl.TextSize          = 10
+    subLbl.TextColor3        = T.SUBTEXT
+    subLbl.BackgroundTransparency = 1
+    subLbl.Position          = UDim2.new(0, 12, 0, 4)
+    subLbl.Size              = UDim2.new(1, -40, 0, 14)
+    subLbl.TextXAlignment    = Enum.TextXAlignment.Left
+    subLbl.ZIndex            = 14
+    subLbl.Parent            = anchor
 
-    local labelTxt = Instance.new("TextLabel")
-    labelTxt.Text              = label
-    labelTxt.Font              = Enum.Font.Gotham
-    labelTxt.TextSize          = 11
-    labelTxt.TextColor3        = T.SUBTEXT
-    labelTxt.BackgroundTransparency = 1
-    labelTxt.Position          = UDim2.new(0, 12, 0, 2)
-    labelTxt.Size              = UDim2.new(0.5, 0, 0, 14)
-    labelTxt.TextXAlignment    = Enum.TextXAlignment.Left
-    labelTxt.ZIndex            = 22
-    labelTxt.Parent            = anchor
+    local valLbl = Instance.new("TextLabel")
+    valLbl.Text              = options[selectedIdx] or "—"
+    valLbl.Font              = Enum.Font.GothamSemibold
+    valLbl.TextSize          = 13
+    valLbl.TextColor3        = T.TEXT
+    valLbl.BackgroundTransparency = 1
+    valLbl.Position          = UDim2.new(0, 12, 0, 20)
+    valLbl.Size              = UDim2.new(1, -44, 0, 18)
+    valLbl.TextXAlignment    = Enum.TextXAlignment.Left
+    valLbl.ZIndex            = 14
+    valLbl.Parent            = anchor
 
-    local valueTxt = Instance.new("TextLabel")
-    valueTxt.Text              = options[selectedIdx] or "—"
-    valueTxt.Font              = Enum.Font.GothamSemibold
-    valueTxt.TextSize          = 13
-    valueTxt.TextColor3        = T.TEXT
-    valueTxt.BackgroundTransparency = 1
-    valueTxt.Position          = UDim2.new(0, 12, 0, 16)
-    valueTxt.Size              = UDim2.new(1, -40, 0, 18)
-    valueTxt.TextXAlignment    = Enum.TextXAlignment.Left
-    valueTxt.ZIndex            = 22
-    valueTxt.Parent            = anchor
+    local arrowLbl = Instance.new("TextLabel")
+    arrowLbl.Text              = "▾"
+    arrowLbl.Font              = Enum.Font.GothamBold
+    arrowLbl.TextSize          = 16
+    arrowLbl.TextColor3        = T.ACCENT
+    arrowLbl.BackgroundTransparency = 1
+    arrowLbl.Size              = UDim2.new(0, 30, 1, 0)
+    arrowLbl.Position          = UDim2.new(1, -32, 0, 0)
+    arrowLbl.TextXAlignment    = Enum.TextXAlignment.Center
+    arrowLbl.ZIndex            = 14
+    arrowLbl.Parent            = anchor
 
-    local arrow = Instance.new("TextLabel")
-    arrow.Text              = "▾"
-    arrow.Font              = Enum.Font.GothamBold
-    arrow.TextSize          = 14
-    arrow.TextColor3        = T.ACCENT
-    arrow.BackgroundTransparency = 1
-    arrow.Size              = UDim2.new(0, 24, 0, 38)
-    arrow.Position          = UDim2.new(1, -28, 0, 0)
-    arrow.TextXAlignment    = Enum.TextXAlignment.Center
-    arrow.ZIndex            = 22
-    arrow.Parent            = anchor
+    -- clickable overlay on anchor
+    local headerClick = Instance.new("TextButton")
+    headerClick.Text             = ""
+    headerClick.BackgroundTransparency = 1
+    headerClick.Size             = UDim2.new(1, 0, 1, 0)
+    headerClick.BorderSizePixel  = 0
+    headerClick.AutoButtonColor  = false
+    headerClick.ZIndex           = 15
+    headerClick.Parent           = anchor
 
-    -- dropdown list — lives OUTSIDE the anchor so it overlaps siblings
-    local listFrame = Instance.new("Frame")
-    listFrame.Name             = "DropList"
-    listFrame.Size             = UDim2.new(1, 0, 0, 0)
-    listFrame.Position         = UDim2.new(0, 0, 0, 42)
-    listFrame.BackgroundColor3 = T.PANEL
-    listFrame.BorderSizePixel  = 0
-    listFrame.ZIndex           = 50
-    listFrame.Visible          = false
-    listFrame.ClipsDescendants = true
-    listFrame.Parent           = anchor
-    corner(listFrame, 7)
-    stroke(listFrame, T.BORDER, 1)
+    -- LIST — parented directly to gui so ScrollingFrame clipping never kills it
+    local ITEM_H  = 32
+    local maxShow = math.min(#options, 6)
+    local listW   = 0  -- computed on open from AbsoluteSize
+    local listH   = maxShow * ITEM_H
 
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Parent    = listFrame
+    local listScroll = Instance.new("ScrollingFrame")
+    listScroll.Name                  = "DDList_" .. label
+    listScroll.Size                  = UDim2.new(0, 200, 0, 0) -- width set on open
+    listScroll.Position              = UDim2.new(0, 0, 0, 0)   -- pos set on open
+    listScroll.BackgroundColor3      = Color3.fromRGB(16, 14, 26)
+    listScroll.BorderSizePixel       = 0
+    listScroll.ZIndex                = 200
+    listScroll.Visible               = false
+    listScroll.ScrollBarThickness    = 3
+    listScroll.ScrollBarImageColor3  = T.ACCENT
+    listScroll.CanvasSize            = UDim2.new(0, 0, 0, #options * ITEM_H)
+    listScroll.ClipsDescendants      = true
+    listScroll.Parent                = gui   -- ← gui root, not page/anchor
+    corner(listScroll, 8)
+    stroke(listScroll, T.ACCENT, 1)
 
-    local ITEM_H = 30
-    local fullH  = #options * ITEM_H
+    local listLayout2 = Instance.new("UIListLayout")
+    listLayout2.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout2.Parent    = listScroll
 
+    -- populate items
+    local itemBtns = {}
     for i, opt in ipairs(options) do
         local item = Instance.new("TextButton")
         item.Text              = opt
         item.Font              = i == selectedIdx and Enum.Font.GothamSemibold or Enum.Font.Gotham
         item.TextSize          = 12
         item.TextColor3        = i == selectedIdx and T.ACCENT or T.TEXT
-        item.BackgroundColor3  = T.PANEL
+        item.BackgroundColor3  = i == selectedIdx and Color3.fromRGB(22,18,42) or Color3.fromRGB(16,14,26)
         item.Size              = UDim2.new(1, 0, 0, ITEM_H)
         item.BorderSizePixel   = 0
         item.AutoButtonColor   = false
         item.LayoutOrder       = i
-        item.ZIndex            = 51
-        item.Parent            = listFrame
+        item.ZIndex            = 201
+        item.Parent            = listScroll
+        itemBtns[i]            = item
 
         item.MouseEnter:Connect(function()
             if i ~= selectedIdx then
-                tween(item, FAST, { BackgroundColor3 = Color3.fromRGB(28, 24, 44) })
+                tween(item, FAST, { BackgroundColor3 = Color3.fromRGB(30, 24, 50) })
             end
         end)
         item.MouseLeave:Connect(function()
             if i ~= selectedIdx then
-                tween(item, FAST, { BackgroundColor3 = T.PANEL })
+                tween(item, FAST, { BackgroundColor3 = Color3.fromRGB(16,14,26) })
             end
         end)
 
-        local function selectThis()
-            -- deselect old
-            for _, child in ipairs(listFrame:GetChildren()) do
-                if child:IsA("TextButton") then
-                    child.Font      = Enum.Font.Gotham
-                    child.TextColor3 = T.TEXT
-                    child.BackgroundColor3 = T.PANEL
-                end
+        item.MouseButton1Click:Connect(function()
+            -- reset all
+            for j, b in ipairs(itemBtns) do
+                b.Font           = Enum.Font.Gotham
+                b.TextColor3     = T.TEXT
+                b.BackgroundColor3 = Color3.fromRGB(16,14,26)
             end
-            selectedIdx        = i
-            item.Font          = Enum.Font.GothamSemibold
-            item.TextColor3    = T.ACCENT
-            item.BackgroundColor3 = Color3.fromRGB(22, 18, 38)
-            valueTxt.Text      = opt
+            selectedIdx           = i
+            item.Font             = Enum.Font.GothamSemibold
+            item.TextColor3       = T.ACCENT
+            item.BackgroundColor3 = Color3.fromRGB(22,18,42)
+            valLbl.Text           = opt
+            arrowLbl.Text         = "▾"
 
             -- close
             isOpen = false
-            tween(listFrame, FAST, { Size = UDim2.new(1, 0, 0, 0) })
-            task.delay(0.16, function() listFrame.Visible = false end)
-            tween(arrow, FAST, { Rotation = 0 })
-            if openDropdown == listFrame then openDropdown = nil end
+            tween(listScroll, FAST, { Size = UDim2.new(0, listScroll.AbsoluteSize.X, 0, 0) })
+            task.delay(0.15, function() listScroll.Visible = false end)
+            if activeListFrame == listScroll then activeListFrame = nil end
 
             if callback then callback(opt, i) end
-        end
-
-        item.MouseButton1Click:Connect(selectThis)
+        end)
     end
 
-    headerBtn.MouseButton1Click:Connect(function()
-        -- close any other open dropdown
-        if openDropdown and openDropdown ~= listFrame then
-            tween(openDropdown, FAST, { Size = UDim2.new(1, 0, 0, 0) })
-            task.delay(0.16, function() if openDropdown then openDropdown.Visible = false end end)
-            openDropdown = nil
-        end
+    local function closeList()
+        isOpen = false
+        tween(listScroll, FAST, { Size = UDim2.new(0, listScroll.AbsoluteSize.X, 0, 0) })
+        task.delay(0.15, function() listScroll.Visible = false end)
+        arrowLbl.Text = "▾"
+        if activeListFrame == listScroll then activeListFrame = nil end
+    end
 
-        isOpen = not isOpen
-        if isOpen then
-            openDropdown       = listFrame
-            listFrame.Visible  = true
-            listFrame.Size     = UDim2.new(1, 0, 0, 0)
-            tween(listFrame, MED, { Size = UDim2.new(1, 0, 0, math.min(fullH, 180)) })
-            tween(arrow, FAST, { Rotation = 180 })
-        else
-            openDropdown = nil
-            tween(listFrame, FAST, { Size = UDim2.new(1, 0, 0, 0) })
-            task.delay(0.16, function() listFrame.Visible = false end)
-            tween(arrow, FAST, { Rotation = 0 })
+    local function openList()
+        -- close anything else
+        if activeListFrame and activeListFrame ~= listScroll then
+            local prev = activeListFrame
+            tween(prev, FAST, { Size = UDim2.new(0, prev.AbsoluteSize.X, 0, 0) })
+            task.delay(0.15, function() prev.Visible = false end)
+        end
+        activeListFrame = listScroll
+        isOpen = true
+        arrowLbl.Text = "▴"
+
+        -- position list under anchor using AbsolutePosition
+        local abs = anchor.AbsolutePosition
+        local absSize = anchor.AbsoluteSize
+        listW = absSize.X
+        listScroll.Size     = UDim2.new(0, listW, 0, 0)
+        listScroll.Position = UDim2.new(0, abs.X, 0, abs.Y + absSize.Y + 4)
+        listScroll.Visible  = true
+        tween(listScroll, MED, { Size = UDim2.new(0, listW, 0, listH) })
+    end
+
+    headerClick.MouseButton1Click:Connect(function()
+        if isOpen then closeList() else openList() end
+    end)
+
+    -- close if click anywhere else
+    UserInputService.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            if isOpen then
+                -- check if click is inside listScroll
+                local mx = inp.Position.X
+                local my = inp.Position.Y
+                local lp2 = listScroll.AbsolutePosition
+                local ls  = listScroll.AbsoluteSize
+                local inside = mx >= lp2.X and mx <= lp2.X + ls.X
+                           and my >= lp2.Y and my <= lp2.Y + ls.Y
+                if not inside then
+                    closeList()
+                end
+            end
         end
     end)
 
@@ -1468,6 +1499,9 @@ local function makeKeyBind(page, label, default, onChange)
     lbl.ZIndex           = 14
     lbl.Parent           = row
 
+    local current = default
+    local listening = false
+
     local btn = Instance.new("TextButton")
     btn.Text             = "[ " .. default.Name .. " ]"
     btn.Font             = Enum.Font.GothamBold
@@ -1483,26 +1517,33 @@ local function makeKeyBind(page, label, default, onChange)
     corner(btn, 6)
     stroke(btn, T.BORDER, 1)
 
-    local current = default
-    local listening = false
     btn.MouseButton1Click:Connect(function()
         if listening then return end
-        listening = true
-        btn.Text      = "[ ... ]"
+        listening      = true
+        btn.Text       = "[ press key ]"
         btn.TextColor3 = T.ACCENT2
-        local c
-        c = UserInputService.InputBegan:Connect(function(inp, gp)
-            if gp then return end
-            if inp.UserInputType == Enum.UserInputType.Keyboard then
-                current       = inp.KeyCode
-                btn.Text      = "[ " .. inp.KeyCode.Name .. " ]"
-                btn.TextColor3 = T.ACCENT
-                listening     = false
-                if onChange then onChange(current) end
-                c:Disconnect()
-            end
-        end)
     end)
+
+    -- use game:GetService("UserInputService") directly, no gp filter during listen
+    UserInputService.InputBegan:Connect(function(inp)
+        if not listening then return end
+        -- ignore mouse buttons, only keyboard
+        if inp.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        -- ignore modifier-only keys
+        local ignore = {
+            [Enum.KeyCode.LeftShift]=true,[Enum.KeyCode.RightShift]=true,
+            [Enum.KeyCode.LeftControl]=true,[Enum.KeyCode.RightControl]=true,
+            [Enum.KeyCode.LeftAlt]=true,[Enum.KeyCode.RightAlt]=true,
+        }
+        if ignore[inp.KeyCode] then return end
+
+        current        = inp.KeyCode
+        btn.Text       = "[ " .. inp.KeyCode.Name .. " ]"
+        btn.TextColor3 = T.ACCENT
+        listening      = false
+        if onChange then onChange(current) end
+    end)
+
     return function() return current end
 end
 
